@@ -73,6 +73,9 @@ jobs:
           grep -Fqx "README.md: ${en_sha}" README.i18n.yaml
           grep -Fqx "README.zh.md: ${zh_sha}" README.i18n.yaml
 
+      - name: Check terminology
+        run: node scripts/check-terminology.mjs
+
   test:
     name: test / latest Node LTS
     runs-on: ubuntu-latest
