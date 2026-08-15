@@ -80,7 +80,7 @@ test('earlier Markdown and TypeScript regressions remain covered', () => {
   assert.deepEqual(findPhraseMatches(markdownProseLines('> ```text\n> behavior contract\n> ```\n'), 'behavior contract'), [])
   assert.deepEqual(findPhraseMatches(markdownProseLines('- ```text\n  behavior contract\n  ```\n'), 'behavior contract'), [])
   assert.deepEqual(findPhraseMatches(markdownProseLines('before `behavior\ncontract` after\n'), 'behavior contract'), [])
-  assert.deepEqual(findPhraseMatches(markdownProseLines('[behavior][term] contract\n'), 'behavior contract'), [1])
+  assert.deepEqual(findPhraseMatches(markdownProseLines('[behavior][term] contract\n\n[term]: /x\n'), 'behavior contract'), [1])
   assert.deepEqual(findPhraseMatches(typescriptProseLines('const message = `这里使用 ${fallback}。`\n'), 'fallback', { requireHan: true }), [])
   assert.deepEqual(findPhraseMatches(typescriptProseLines('const message = `这里使用解析\n链。`\n'), '解析链', { requireHan: true }), [1])
 })
