@@ -34,6 +34,9 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   { id: 'safety.audit-raw-input-opt-in', class: 'safety', check: 'audit raw tool input requires explicit opt-in', why: 'raw tool arguments enter the audit file only after explicit configuration' },
   { id: 'safety.aborted-request', class: 'safety', check: 'already-aborted approval returns cancelled', why: 'an already-cancelled approval request is never reviewed or authorized' },
   { id: 'safety.tool-filter', class: 'safety', check: 'tool filter delegates excluded approval asks', why: 'policy.tools scopes which approval asks the plugin is allowed to answer' },
+  { id: 'safety.invalid-allow-rule-tool', class: 'safety', check: 'empty allow-rule tool is rejected', why: 'a malformed direct-allow rule never arms with an ambiguous tool identity' },
+  { id: 'safety.invalid-row-config', class: 'safety', check: 'structurally invalid row config refuses to arm', why: 'structurally invalid boot config disables auto-review instead of silently shrinking policy' },
+  { id: 'safety.mid-review-abort', class: 'safety', check: 'abort during reviewer failure returns cancelled', why: 'a request cancelled during review cannot later become an authorization outcome' },
 
   { id: 'fallback.reviewer-down-default', class: 'fallback', check: 'reviewer-error fails closed as unavailable', why: 'reviewer infrastructure failure does not accidentally authorize an action' },
   { id: 'fallback.reviewer-down-configured-delegate', class: 'fallback', check: 'reviewer-error delegates when configured', why: 'operators can explicitly fall back to interactive approval' },
@@ -51,6 +54,10 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   { id: 'fallback.command-no-settings', class: 'fallback', check: 'auto-review toggle without settings provider errors', why: 'the command never pretends a runtime toggle persisted when no settings provider exists' },
   { id: 'fallback.command-persist-failure', class: 'fallback', check: 'auto-review persistence failure is surfaced', why: 'settings write failures are returned to the user instead of silently ignored' },
   { id: 'fallback.approve-empty', class: 'fallback', check: 'approve with no denial history errors', why: 'post-denial approval cannot manufacture an action when the ledger is empty' },
+  { id: 'fallback.settings-registration', class: 'fallback', check: 'settings registration failure falls back to valid row config', why: 'an unavailable settings service does not discard an otherwise valid boot configuration' },
+  { id: 'fallback.settings-read-no-good', class: 'fallback', check: 'settings read failure before any good config delegates safely', why: 'settings failure before any valid config disables auto-review and leaves the decision to the human path' },
+  { id: 'fallback.sandbox-policy', class: 'fallback', check: 'sandbox policy failure falls back to session cwd', why: 'optional sandbox metadata failure does not break review and falls back to the session workspace' },
+  { id: 'fallback.audit-write', class: 'fallback', check: 'audit write failure is contained and logged', why: 'audit sink I/O failure is observable but cannot crash the approval pipeline' },
 
   { id: 'recovery.malformed-retry', class: 'recovery', check: 'malformed verdict retried then allowed', why: 'a single malformed reviewer reply gets exactly one corrective retry' },
   { id: 'recovery.breaker-trip', class: 'recovery', check: 'circuit breaker cancels turn', why: 'repeated denials stop agent circumvention loops' },
@@ -59,4 +66,7 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   { id: 'recovery.non-denial-reset', class: 'recovery', check: 'unavailable breaks the streak: 2 consecutive after reset does not trip', why: 'any non-denial resets the consecutive-denial counter' },
   { id: 'recovery.override-one-use', class: 'recovery', check: 'override consumed after one use', why: 'post-denial user approval is exact-action and one-use only' },
   { id: 'recovery.last-known-good-config', class: 'recovery', check: 'invalid live update retains last known-good', why: 'a malformed live config cannot disarm the previously valid policy' },
+  { id: 'recovery.settings-read-last-good', class: 'recovery', check: 'settings read failure retains last known-good during audit', why: 'transient settings read failures retain the last validated configuration' },
+  { id: 'recovery.breaker-off-action', class: 'recovery', check: 'breaker off performs no trip action', why: 'breaker state can be observed without injecting or cancelling when action is explicitly off' },
+  { id: 'recovery.breaker-inject-action', class: 'recovery', check: 'breaker inject action explains without cancelling', why: 'inject mode stops cancellation while still surfacing the breaker event to the agent' },
 ]
