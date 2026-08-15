@@ -20,9 +20,9 @@ export declare const Config: z<Schemastery.ObjectS<{
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
         /**
-         * Bounded read-only fact finding. Fixed tools only: no shell, network,
-         * escalation, or nested approval request. File content is available only
-         * through inspect_text_file when factFinding.content.enabled is true.
+         * Read-only fact finding. Fixed tools only: no shell, network, escalation,
+         * or nested approval request. File content is available only through
+         * inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -78,9 +78,9 @@ export declare const Config: z<Schemastery.ObjectS<{
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
         /**
-         * Bounded read-only fact finding. Fixed tools only: no shell, network,
-         * escalation, or nested approval request. File content is available only
-         * through inspect_text_file when factFinding.content.enabled is true.
+         * Read-only fact finding. Fixed tools only: no shell, network, escalation,
+         * or nested approval request. File content is available only through
+         * inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -160,7 +160,7 @@ export declare const Config: z<Schemastery.ObjectS<{
          * text, tool calls, and tool-result facts). Reasoning blocks and
          * plugin-injected context are never included. Older context may be trimmed.
          * The latest user authorization is never truncated; if it exceeds maxChars,
-         * the caller fails closed before reviewer execution.
+         * the approval request is rejected before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -227,7 +227,7 @@ export declare const Config: z<Schemastery.ObjectS<{
          * text, tool calls, and tool-result facts). Reasoning blocks and
          * plugin-injected context are never included. Older context may be trimmed.
          * The latest user authorization is never truncated; if it exceeds maxChars,
-         * the caller fails closed before reviewer execution.
+         * the approval request is rejected before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -296,9 +296,9 @@ export declare const Config: z<Schemastery.ObjectS<{
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
         /**
-         * Bounded read-only fact finding. Fixed tools only: no shell, network,
-         * escalation, or nested approval request. File content is available only
-         * through inspect_text_file when factFinding.content.enabled is true.
+         * Read-only fact finding. Fixed tools only: no shell, network, escalation,
+         * or nested approval request. File content is available only through
+         * inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -354,9 +354,9 @@ export declare const Config: z<Schemastery.ObjectS<{
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
         /**
-         * Bounded read-only fact finding. Fixed tools only: no shell, network,
-         * escalation, or nested approval request. File content is available only
-         * through inspect_text_file when factFinding.content.enabled is true.
+         * Read-only fact finding. Fixed tools only: no shell, network, escalation,
+         * or nested approval request. File content is available only through
+         * inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -436,7 +436,7 @@ export declare const Config: z<Schemastery.ObjectS<{
          * text, tool calls, and tool-result facts). Reasoning blocks and
          * plugin-injected context are never included. Older context may be trimmed.
          * The latest user authorization is never truncated; if it exceeds maxChars,
-         * the caller fails closed before reviewer execution.
+         * the approval request is rejected before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -503,7 +503,7 @@ export declare const Config: z<Schemastery.ObjectS<{
          * text, tool calls, and tool-result facts). Reasoning blocks and
          * plugin-injected context are never included. Older context may be trimmed.
          * The latest user authorization is never truncated; if it exceeds maxChars,
-         * the caller fails closed before reviewer execution.
+         * the approval request is rejected before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
