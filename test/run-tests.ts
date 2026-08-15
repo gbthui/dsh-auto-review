@@ -4,6 +4,7 @@ import { REQUIRED_BEHAVIORS } from './behavior-contract.ts'
 const suites = [
   'test/units.test.ts',
   'test/audit.test.ts',
+  'test/branch-behavior.test.ts',
   'test/pipeline.test.ts',
   'test/policy-cases.test.ts',
 ]
