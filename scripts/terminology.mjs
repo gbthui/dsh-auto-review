@@ -1,124 +1,62 @@
 import { readFileSync } from 'node:fs'
+import { parseDocument } from 'yaml'
 
-function parseScalar(raw) {
-  const value = raw.trim()
-  if (value.startsWith('"')) return JSON.parse(value)
-  if (value.startsWith("'")) return value.slice(1, -1).replaceAll("''", "'")
-  return value.replace(/\s+#.*$/, '').trim()
+function asObject(value, label, filePath) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${filePath}: ${label} must be a mapping`)
+  }
+  return value
+}
+
+function nonEmptyString(value, label, filePath) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`${filePath}: ${label} must be a non-empty string`)
+  }
+  return value
+}
+
+function stringList(value, label, filePath) {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) throw new Error(`${filePath}: ${label} must be a list`)
+  return value.map((item, index) => nonEmptyString(item, `${label}[${index}]`, filePath))
 }
 
 export function readTerminology(filePath) {
-  const lines = readFileSync(filePath, 'utf8').split(/\r?\n/)
-  const terms = new Map()
-  const forbiddenZh = []
-  const forbiddenEn = []
-  let section = null
-  let currentTerm = null
-  let currentList = null
-  let currentKeys = null
-
-  const fail = (lineNo, line, message) => {
-    throw new Error(`${filePath}:${lineNo}: ${message}: ${JSON.stringify(line)}`)
+  const source = readFileSync(filePath, 'utf8')
+  const document = parseDocument(source, { uniqueKeys: true, prettyErrors: true })
+  if (document.errors.length) {
+    throw new Error(`${filePath}: ${document.errors.map((error) => error.message).join('; ')}`)
   }
 
-  const claimKey = (key, lineNo, line) => {
-    if (currentKeys.has(key)) fail(lineNo, line, `duplicate key ${key} in terminology entry ${currentTerm.id}`)
-    currentKeys.add(key)
+  const root = asObject(document.toJS(), 'document', filePath)
+  if (root.version !== 2) throw new Error(`${filePath}: version must be 2`)
+
+  const rawTerms = asObject(root.terms, 'terms', filePath)
+  const terms = []
+  const allowedKeys = new Set(['en', 'zh', 'code', 'avoid_zh', 'avoid_en'])
+
+  for (const [id, rawValue] of Object.entries(rawTerms)) {
+    if (!/^[a-z0-9-]+$/.test(id)) throw new Error(`${filePath}: invalid terminology id ${JSON.stringify(id)}`)
+    const value = asObject(rawValue, `terms.${id}`, filePath)
+    for (const key of Object.keys(value)) {
+      if (!allowedKeys.has(key)) throw new Error(`${filePath}: unexpected key terms.${id}.${key}`)
+    }
+    terms.push({
+      id,
+      en: nonEmptyString(value.en, `terms.${id}.en`, filePath),
+      zh: nonEmptyString(value.zh, `terms.${id}.zh`, filePath),
+      code: value.code === undefined ? '' : nonEmptyString(value.code, `terms.${id}.code`, filePath),
+      avoidZh: stringList(value.avoid_zh, `terms.${id}.avoid_zh`, filePath),
+      avoidEn: stringList(value.avoid_en, `terms.${id}.avoid_en`, filePath),
+    })
   }
 
-  const nonEmpty = (value, lineNo, line, label) => {
-    if (!value) fail(lineNo, line, `${label} must not be empty`)
-    return value
-  }
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]
-    const lineNo = index + 1
-    if (/^\s*(?:#.*)?$/.test(line)) continue
-    if (/^version:\s+\d+\s*$/.test(line)) continue
-
-    if (/^terms:\s*$/.test(line)) {
-      section = 'terms'
-      currentTerm = null
-      currentList = null
-      currentKeys = null
-      continue
-    }
-    if (/^forbidden_zh:\s*$/.test(line)) {
-      section = 'forbidden_zh'
-      currentTerm = null
-      currentList = null
-      currentKeys = null
-      continue
-    }
-    if (/^forbidden_en:\s*$/.test(line)) {
-      section = 'forbidden_en'
-      currentTerm = null
-      currentList = null
-      currentKeys = null
-      continue
-    }
-
-    if (section === 'terms') {
-      const termStart = line.match(/^  ([a-z0-9-]+):\s*$/)
-      if (termStart) {
-        if (terms.has(termStart[1])) fail(lineNo, line, `duplicate terminology entry ${termStart[1]}`)
-        currentTerm = { id: termStart[1], en: '', zh: '', code: '', avoidZh: [], avoidEn: [] }
-        terms.set(currentTerm.id, currentTerm)
-        currentList = null
-        currentKeys = new Set()
-        continue
-      }
-      if (!currentTerm) fail(lineNo, line, 'expected a terminology entry')
-
-      const scalar = line.match(/^    (en|zh|code):\s+(.+?)\s*$/)
-      if (scalar) {
-        currentList = null
-        claimKey(scalar[1], lineNo, line)
-        const value = nonEmpty(parseScalar(scalar[2]), lineNo, line, scalar[1])
-        if (scalar[1] === 'en') currentTerm.en = value
-        else if (scalar[1] === 'zh') currentTerm.zh = value
-        else currentTerm.code = value
-        continue
-      }
-
-      const listStart = line.match(/^    (avoid_zh|avoid_en):\s*$/)
-      if (listStart) {
-        claimKey(listStart[1], lineNo, line)
-        currentList = listStart[1]
-        continue
-      }
-
-      const listItem = line.match(/^      -\s+(.+?)\s*$/)
-      if (listItem && currentList) {
-        const value = nonEmpty(parseScalar(listItem[1]), lineNo, line, `${currentList} item`)
-        if (currentList === 'avoid_zh') currentTerm.avoidZh.push(value)
-        else currentTerm.avoidEn.push(value)
-        continue
-      }
-
-      fail(lineNo, line, 'malformed terminology entry')
-    }
-
-    if (section === 'forbidden_zh' || section === 'forbidden_en') {
-      const item = line.match(/^  -\s+(.+?)\s*$/)
-      if (!item) fail(lineNo, line, `malformed ${section} entry`)
-      const value = nonEmpty(parseScalar(item[1]), lineNo, line, `${section} item`)
-      ;(section === 'forbidden_zh' ? forbiddenZh : forbiddenEn).push(value)
-      continue
-    }
-
-    fail(lineNo, line, 'unexpected top-level content')
-  }
-
-  for (const term of terms.values()) {
-    if (!term.en) throw new Error(`${filePath}: terminology entry ${term.id} has no en value`)
-    if (!term.zh) throw new Error(`${filePath}: terminology entry ${term.id} has no zh value`)
-  }
-  if (terms.size === 0) throw new Error(`${filePath}: no terminology entries`)
+  if (terms.length === 0) throw new Error(`${filePath}: no terminology entries`)
+  const forbiddenZh = stringList(root.forbidden_zh, 'forbidden_zh', filePath)
+  const forbiddenEn = stringList(root.forbidden_en, 'forbidden_en', filePath)
   if (forbiddenZh.length === 0 || forbiddenEn.length === 0) {
     throw new Error(`${filePath}: forbidden_zh and forbidden_en must both be non-empty`)
   }
 
-  return { terms: [...terms.values()], forbiddenZh, forbiddenEn }
+  return { terms, forbiddenZh, forbiddenEn }
 }
