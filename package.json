@@ -54,14 +54,14 @@
   "types": "lib/index.d.ts",
   "scripts": {
     "audit:zh": "node scripts/audit-zh-vocabulary.mjs",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node node_modules/typescript/lib/tsc.js -p tsconfig.build.json",
     "check:terminology": "node scripts/check-terminology.mjs",
     "test:writing": "node --test scripts/writing-tools.test.mjs scripts/writing-tools-regressions.test.mjs",
-    "typecheck": "tsc && tsc -p tsconfig.test.json",
+    "typecheck": "node node_modules/typescript/lib/tsc.js && node node_modules/typescript/lib/tsc.js -p tsconfig.test.json",
     "test": "tsx test/run-tests.ts",
     "test:coverage": "c8 --config .c8rc.json tsx test/run-tests.ts",
     "test:matrix": "tsx test/policy-matrix.test.ts",
     "test:e2e": "tsx test/runtime-e2e.test.ts",
-    "prepack": "tsc -p tsconfig.build.json"
+    "prepack": "node node_modules/typescript/lib/tsc.js -p tsconfig.build.json"
   }
 }
