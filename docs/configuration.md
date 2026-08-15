@@ -166,9 +166,9 @@ A fact request made while fact finding is disabled, an `inspect_text_file` reque
 
 ## Configuration loading
 
-Valid settings updates apply immediately. Invalid updates are rejected and the last valid configuration remains active.
+Valid settings updates apply immediately. Invalid updates are rejected and the last known-good configuration remains active.
 
-If settings service registration fails, the plugin uses the validated configuration supplied when it was loaded. If a settings read fails before any valid settings configuration has been read, that approval request continues to the next answerer. After a valid settings configuration has been read, later read failures keep the last valid configuration.
+If settings service registration fails, the plugin uses the validated configuration supplied when it was loaded. If a settings read fails before any valid settings configuration has been read, that approval request continues to the next answerer. After a valid settings configuration has been read, later read failures keep the last known-good configuration.
 
 Updating plugin code still requires restarting the running profile.
 
