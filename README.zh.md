@@ -56,19 +56,19 @@ dsh-auto-review 先回答
 
 ## 功能
 
-插件注册为 `approval/request` 事件的第一个 answerer。升级请求会先交给 reviewer；授权只对当前请求生效。
+插件注册为 `approval/request` 的第一个 answerer。升级请求会先交给 reviewer；授权只对当前请求生效。
 
-reviewer 会收到待审批请求、你的用户消息、agent 最近的活动和工具结果摘要。只有用户消息可以作为授权依据。agent 的 chain of thought 不会发送给 reviewer；原始工具输出默认也不会发送，除非显式开启。
+reviewer 会收到待审批请求、你的用户消息、agent 最近的活动和工具结果摘要。在 reviewer 上下文中，只有用户消息能够授权。agent 的 chain of thought 不会发送给 reviewer。原始工具输出默认也不会发送；显式设置 `rawToolResults: true` 后才会额外发送经过长度限制的原始工具结果文本。
 
-默认采用 fail closed。无法定位精确工具调用、请求超过大小限制、reviewer 不可达时，请求都会被拒绝。reviewer 返回的结果无法解析时会重试一次，第二次仍失败则拒绝请求。
+无法定位精确工具调用、待审批请求超过 `maxInputChars`、或最新用户授权超过上下文预算时，会在调用 reviewer 之前直接 `rejected`。reviewer error 默认返回 `unavailable`；设置 `denyOnReviewerError: false` 后，这类错误会继续交给下一个 answerer。reviewer 输出无法解析时会进行一次纠正重试，第二次仍失败则按同一套 reviewer-error 规则处理。
 
-`allowRules` 可以按工具名和操作前缀直接放行请求，不经过 reviewer。它不会对 `danger-full-access` 生效。
+`allowRules` 可以按精确工具名和字面操作前缀直接放行请求，不经过 reviewer。只有显式声明 `workspace-write` 时才能直接放行该升级目标；`danger-full-access` 无法通过 `allowRules` 获得授权。
 
-熔断器在连续三次拒绝，或最近五十次评审中出现十次拒绝时取消当前回合，避免 agent 反复尝试同一类操作。
+breaker 只统计当前回合。默认配置下，连续 3 次 deny，或 breaker 最近记录的 50 个 approval outcomes 中累计 10 次 deny，会触发 breaker。`allow` 和 `unavailable` 都会中断连续拒绝；reviewer 不可用不会被计为 deny。
 
-每次判定都会写入 `~/.dsh/auto-review-audit.jsonl`。工具输入默认只保存 sha256 哈希；`includeToolInput` 设为 true 后保存原文。
+每次判定都会写入 `~/.dsh/auto-review-audit.jsonl`。工具输入默认只保存 sha256；`includeToolInput` 设为 true 后才保存原始输入。
 
-`/approve N` 显示一条被拒绝动作的工具、目录、完整参数和 fingerprint。`/approve N confirm` 允许该动作原样重试一次；重试仍会经过 reviewer。
+`/approve N` 显示一条被拒绝动作的工具、目录、完整参数和 fingerprint；查看记录本身不会产生授权。显示记录后，`/approve N confirm` 才允许该动作原样重试一次；重试仍会经过 reviewer。
 
 ## 文档
 
@@ -77,13 +77,13 @@ reviewer 会收到待审批请求、你的用户消息、agent 最近的活动�
 
 ## 测试
 
-项目包含四个测试套件。`test/units.test.ts` 覆盖判定解析、四分类判别、敏感路径匹配、只读查询工具及加固 git 探针、结构化证据、API 密钥解析、reviewer 请求格式，以及由环境变量控制的 live round-trip。
+`npm test` 通过 `test/run-tests.ts` 运行确定性的源码测试，包括 `test/units.test.ts`、`test/behavior/` 下按领域拆分的行为测试、`test/pipeline.test.ts` 和 `test/policy-cases.test.ts`。需要真实 reviewer 的 policy cases 仍由环境变量控制；没有配置 reviewer 端点时会跳过。
 
-`test/pipeline.test.ts` 用 mock 上下文覆盖 answerer 流程，包括类型化放行规则、熔断器、注入策略、配置校验、composer 命令和本地查询循环。
+`test/behavior/contract.ts` 列出 CI 必须实际执行并通过的 required behaviors，覆盖文档承诺的审批路径、reviewer-error 处理、证据边界、本地查询、breaker、审计、live configuration 和命令行为。它和数值 coverage 是两道独立门槛，避免总覆盖率看起来很高时，某条关键 fallback 或安全路径已经被删掉。
 
-`test/policy-cases.test.ts` 是对抗性策略语料，包含授权撤销、授权收窄、提示注入和灾难操作。通过 `AR_REVIEWER_BASE_URL` / `AR_REVIEWER_MODEL` / `AR_REVIEWER_API_KEY` 可以对真实端点运行。
+`npm run test:coverage` 用 c8/V8 对同一套确定性测试采集源码 coverage。CI 对 `src/**/*.ts` 要求至少 95% statements、85% branches、100% functions 和 95% lines，并把测试过程中完全没有加载的源码文件也计入。文本、JSON summary 和 LCOV 报告写入 `coverage/`。
 
-`test/policy-matrix.test.ts` 对同一语料执行 N 轮测量并统计 TP/FP/TN/FN。默认每个 case 30 轮；`AR_MATRIX_ROUNDS` 可调整轮数，`AR_MATRIX_FAIL_ON_FALSE_ALLOW=1` 会让假允许导致测试失败。
+`test/policy-matrix.test.ts` 对对抗性策略语料执行 N 轮测量并统计 TP/FP/TN/FN。默认每个 case 30 轮；`AR_MATRIX_ROUNDS` 可调整轮数，`AR_MATRIX_FAIL_ON_FALSE_ALLOW=1` 会让假允许导致测试失败。
 
 `npm run test:e2e` 运行 Cordis/AgentLoop E2E，覆盖沙箱拒绝、`approval/request`、reviewer `allowed-once`、重试执行和 reviewer 拒绝。它只接受显式的 `AR_E2E_API_KEY` 环境变量；`AR_E2E_BASE_URL` 和 `AR_E2E_MODEL` 为可选项。测试通过 tsx 直接运行 TypeScript 源码。
 
@@ -96,12 +96,13 @@ Node 不会对 `node_modules` 下的源码执行类型剥离，因此只发布�
 安全边界按 `src/` 模块拆分：`index.ts` 是入口；`policy` 保存 reviewer 策略；`evidence` 处理可信、不可信上下文和授权完整性；`facts` 提供只读查询工具；`reviewer` 负责模型调用和判定解析；`approval-answerer` 处理决策流程和 `/approve` 记录；`breaker` 实现熔断；`audit` 写 JSONL 审计；`config` 定义 schema；`util` 保存小型辅助函数。
 
 ```bash
-npm install --save-dev typescript @types/node tsx
-npm run typecheck  # src（strict）加 test/src 双配置类型检查
-npm test          # tsx test/*.test.ts：units + pipeline + 策略语料
+npm install
+npm run typecheck
+npm test
+npm run test:coverage
 ```
 
-类型检查会从本地 DeepSeek Harness 的 `node_modules` 解析 `@deepseek-ai/*` 类型包。需要把这些包链接到 `node_modules/@deepseek-ai/`；它们没有列为 npm 依赖。`npm install` 会清理这些符号链接，安装后需要重新创建。
+测试还会导入 DeepSeek Harness 的相关包。CI 会从 npm 安装固定的 Harness 0.1.0-rc.6 测试依赖集合。本地开发可以用 `--no-save` 安装同版本包，也可以从对应版本的 Harness checkout 建立链接；CI 使用的精确包列表见 `.github/workflows/ci.yml`。
 
 ## 许可证
 
