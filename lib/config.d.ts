@@ -14,10 +14,9 @@ export declare const Config: z<Schemastery.ObjectS<{
         /**
          * Request-side reasoning control. The verdict ALWAYS comes from the
          * final answer — chain-of-thought output is never parsed as an
-         * authorization. 'off' disables reasoning on the request side so the
-         * final answer lands deterministically (endpoint path sends DeepSeek's
-         * `thinking:{type:disabled}`; session path maps to the adapter's
-         * 'off' effort on `deepseek-official`).
+         * authorization. 'off' disables reasoning on the request side (endpoint
+         * path sends DeepSeek's `thinking:{type:disabled}`; session path maps to
+         * `reasoningEffort: off` when the provider is `deepseek-official`).
          */
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
@@ -25,7 +24,8 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Bounded read-only fact finding: the reviewer may ask for a few LOCAL
          * metadata facts (paths, directory stats, git remote/status) before its
          * final verdict. Fixed semantic tools only — no shell, no network, no
-         * escalation, never a new approval ask. File CONTENT is never exposed.
+         * escalation, never a new approval ask. File content is available only
+         * through inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -75,10 +75,9 @@ export declare const Config: z<Schemastery.ObjectS<{
         /**
          * Request-side reasoning control. The verdict ALWAYS comes from the
          * final answer — chain-of-thought output is never parsed as an
-         * authorization. 'off' disables reasoning on the request side so the
-         * final answer lands deterministically (endpoint path sends DeepSeek's
-         * `thinking:{type:disabled}`; session path maps to the adapter's
-         * 'off' effort on `deepseek-official`).
+         * authorization. 'off' disables reasoning on the request side (endpoint
+         * path sends DeepSeek's `thinking:{type:disabled}`; session path maps to
+         * `reasoningEffort: off` when the provider is `deepseek-official`).
          */
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
@@ -86,7 +85,8 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Bounded read-only fact finding: the reviewer may ask for a few LOCAL
          * metadata facts (paths, directory stats, git remote/status) before its
          * final verdict. Fixed semantic tools only — no shell, no network, no
-         * escalation, never a new approval ask. File CONTENT is never exposed.
+         * escalation, never a new approval ask. File content is available only
+         * through inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -164,8 +164,9 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Structured evidence for the reviewer: recent human prompts (trusted
          * authorization, seq-tagged) plus untrusted execution context (assistant
          * text, tool calls, and tool-result facts). Reasoning blocks and
-         * plugin-injected context are never included. The evidence only ever
-         * gets trimmed — it never causes a denial.
+         * plugin-injected context are never included. Older context may be trimmed,
+         * but the latest user authorization is never truncated; if it exceeds
+         * maxChars, the approval request fails closed before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -230,8 +231,9 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Structured evidence for the reviewer: recent human prompts (trusted
          * authorization, seq-tagged) plus untrusted execution context (assistant
          * text, tool calls, and tool-result facts). Reasoning blocks and
-         * plugin-injected context are never included. The evidence only ever
-         * gets trimmed — it never causes a denial.
+         * plugin-injected context are never included. Older context may be trimmed,
+         * but the latest user authorization is never truncated; if it exceeds
+         * maxChars, the approval request fails closed before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -294,10 +296,9 @@ export declare const Config: z<Schemastery.ObjectS<{
         /**
          * Request-side reasoning control. The verdict ALWAYS comes from the
          * final answer — chain-of-thought output is never parsed as an
-         * authorization. 'off' disables reasoning on the request side so the
-         * final answer lands deterministically (endpoint path sends DeepSeek's
-         * `thinking:{type:disabled}`; session path maps to the adapter's
-         * 'off' effort on `deepseek-official`).
+         * authorization. 'off' disables reasoning on the request side (endpoint
+         * path sends DeepSeek's `thinking:{type:disabled}`; session path maps to
+         * `reasoningEffort: off` when the provider is `deepseek-official`).
          */
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
@@ -305,7 +306,8 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Bounded read-only fact finding: the reviewer may ask for a few LOCAL
          * metadata facts (paths, directory stats, git remote/status) before its
          * final verdict. Fixed semantic tools only — no shell, no network, no
-         * escalation, never a new approval ask. File CONTENT is never exposed.
+         * escalation, never a new approval ask. File content is available only
+         * through inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -355,10 +357,9 @@ export declare const Config: z<Schemastery.ObjectS<{
         /**
          * Request-side reasoning control. The verdict ALWAYS comes from the
          * final answer — chain-of-thought output is never parsed as an
-         * authorization. 'off' disables reasoning on the request side so the
-         * final answer lands deterministically (endpoint path sends DeepSeek's
-         * `thinking:{type:disabled}`; session path maps to the adapter's
-         * 'off' effort on `deepseek-official`).
+         * authorization. 'off' disables reasoning on the request side (endpoint
+         * path sends DeepSeek's `thinking:{type:disabled}`; session path maps to
+         * `reasoningEffort: off` when the provider is `deepseek-official`).
          */
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
@@ -366,7 +367,8 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Bounded read-only fact finding: the reviewer may ask for a few LOCAL
          * metadata facts (paths, directory stats, git remote/status) before its
          * final verdict. Fixed semantic tools only — no shell, no network, no
-         * escalation, never a new approval ask. File CONTENT is never exposed.
+         * escalation, never a new approval ask. File content is available only
+         * through inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -444,8 +446,9 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Structured evidence for the reviewer: recent human prompts (trusted
          * authorization, seq-tagged) plus untrusted execution context (assistant
          * text, tool calls, and tool-result facts). Reasoning blocks and
-         * plugin-injected context are never included. The evidence only ever
-         * gets trimmed — it never causes a denial.
+         * plugin-injected context are never included. Older context may be trimmed,
+         * but the latest user authorization is never truncated; if it exceeds
+         * maxChars, the approval request fails closed before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -510,8 +513,9 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Structured evidence for the reviewer: recent human prompts (trusted
          * authorization, seq-tagged) plus untrusted execution context (assistant
          * text, tool calls, and tool-result facts). Reasoning blocks and
-         * plugin-injected context are never included. The evidence only ever
-         * gets trimmed — it never causes a denial.
+         * plugin-injected context are never included. Older context may be trimmed,
+         * but the latest user authorization is never truncated; if it exceeds
+         * maxChars, the approval request fails closed before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;

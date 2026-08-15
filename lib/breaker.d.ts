@@ -7,10 +7,11 @@ export declare function currentTurn(events: readonly SessionEvent[] | undefined)
  *  - 'deny' counts toward the breaker: consecutive++ and a deny slot in
  *    the rolling window;
  *  - ANY non-denial — 'allow' AND 'unavailable' — resets the consecutive
- *    counter (Codex semantics: any non-denial resets it). Neither counts
- *    as a deny in the window: reviewer infra failure is not evidence of
- *    danger, it just breaks a denial streak.
- * Counters reset when the session moves to a new turn.
+ *    counter. Neither counts as a deny in the rolling window: reviewer
+ *    unavailability is not evidence of danger, but it does break a denial
+ *    streak.
+ * The rolling window counts approval outcomes observed by the breaker, not
+ * reviewer calls. Counters reset when the session moves to a new turn.
  */
 export declare class Breaker {
     private readonly state;
