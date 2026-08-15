@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
+  apply as AutoReview,
   callReviewer,
   parseReviewerReply,
   parseVerdict,
@@ -71,6 +72,30 @@ rmSync(keyDir, { recursive: true, force: true })
     await reviewWithSessionModel({ get: () => ({ stream: async function* () {} }) }, undefined, {}, { system: 's', user: 'u' })
   } catch (error) { errorText = String((error as Error).message) }
   check('session reviewer without provider-model fails closed', errorText.includes('no provider/model'), true)
+}
+
+// Cancellation during reviewer execution
+{
+  let handler: any = null
+  const controller = new AbortController()
+  const ctx = {
+    logger: () => ({ warn: () => {}, error: () => {} }),
+    get: (name: string) => {
+      if (name === 'llm') return {
+        stream: async function* () {
+          controller.abort()
+          throw new Error('mock reviewer transport failed')
+        },
+      }
+      throw new Error('no service: ' + name)
+    },
+    on: (event: string, fn: unknown) => { if (event === 'approval/request') handler = fn },
+  }
+  AutoReview(ctx as never, { audit: { enabled: false } })
+  const agent = makeAgent()
+  agent.session.events = [{ type: 'tool/call', data: { callId: 'abort-mid-review', name: 'bash', arguments: '{"command":"ls"}' } }]
+  const out = await handler({ agent, toolName: 'bash', callId: 'abort-mid-review', reason: 'x', signal: controller.signal }, async () => 'DELEGATED')
+  check('abort during reviewer failure returns cancelled', out, 'cancelled')
 }
 
 report()
