@@ -58,17 +58,17 @@ dsh-auto-review answers first
 
 The plugin registers as the first answerer for `approval/request`. Escalation requests reach the reviewer first, and each grant applies only to the current request.
 
-The reviewer receives the pending request, your user messages, the agent's recent activity, and summaries of tool results. Only user messages in reviewer context can authorize an action. The agent's chain of thought is not sent to the reviewer. Raw tool output is omitted by default; `rawToolResults: true` explicitly includes capped raw tool-result text.
+The reviewer receives the pending request, your user messages, the agent's recent activity, and summaries of tool results. Only user messages can authorize an action. The agent's chain of thought is not sent to the reviewer. Raw tool output is omitted by default. With `rawToolResults: true`, up to 400 characters from each tool result may be included.
 
-Integrity failures such as an unresolved exact tool call, an oversized pending request, or a latest user authorization that exceeds the context budget are `rejected` without reviewer execution. Reviewer errors return `unavailable` by default. Setting `denyOnReviewerError: false` delegates reviewer errors to the next answerer. Malformed reviewer output gets one corrective retry; a second parse failure follows the same reviewer-error handling.
+An unresolved tool call, a pending request over `maxInputChars`, or a latest user message over the context budget is `rejected` before the reviewer runs. Reviewer call or result-processing errors return `unavailable` by default. With `denyOnReviewerError: false`, those requests continue to the next answerer. Malformed reviewer output is retried once; a second parse failure follows `denyOnReviewerError` as well.
 
-`allowRules` can grant requests without review by exact tool name and literal operation prefix. A rule can grant a `workspace-write` escalation only when that target is declared explicitly. `danger-full-access` cannot be granted through `allowRules`.
+`allowRules` can grant requests without review by exact tool name and literal string prefix. A rule can grant a `workspace-write` escalation only when it declares that target. `danger-full-access` cannot be granted through `allowRules`.
 
-The circuit breaker is scoped to the current turn. With the defaults, it triggers after three consecutive denials or ten denials among the latest fifty approval outcomes observed by the breaker. `allow` and `unavailable` break a consecutive denial streak; reviewer unavailability does not count as a denial.
+The circuit breaker is scoped to the current turn. With the defaults, it trips after three consecutive denials or ten denials in the latest fifty approval outcomes. `allow` and `unavailable` reset the consecutive-denial count; `unavailable` does not count as a denial.
 
 Every decision is written to `~/.dsh/auto-review-audit.jsonl`. Tool inputs are stored as sha256 hashes by default. Set `includeToolInput` to true to store the original input.
 
-`/approve N` displays the tool, directory, complete arguments, and fingerprint for a denied action. Displaying a record does not authorize anything. `/approve N confirm` permits one retry of that exact action after the record has been displayed. The retry still passes through the reviewer.
+`/approve N` displays the tool, directory, complete arguments, and fingerprint for a denied action. Displaying the record does not authorize anything. After the record is displayed, `/approve N confirm` permits one retry of that exact action. The retry still passes through the reviewer.
 
 ## Documentation
 
@@ -77,11 +77,11 @@ Every decision is written to `~/.dsh/auto-review-audit.jsonl`. Tool inputs are s
 
 ## Tests
 
-`npm test` runs the deterministic source tests through `test/run-tests.ts`. The runner executes `test/units.test.ts`, the domain behavior suites under `test/behavior/`, `test/pipeline.test.ts`, and `test/policy-cases.test.ts`. Live policy cases remain environment-gated and are skipped when no reviewer endpoint is configured.
+`npm test` runs the test suites through `test/run-tests.ts`: `test/units.test.ts`, the behavior tests under `test/behavior/`, `test/pipeline.test.ts`, and `test/policy-cases.test.ts`. Cases that require a live reviewer are skipped when no reviewer endpoint is configured.
 
-`test/behavior/contract.ts` lists the required behaviors that CI must observe as executed and passing. The contract covers the documented approval path, reviewer-error handling, evidence boundaries, fact finding, circuit breaker, audit behavior, live configuration, and commands. This is separate from numeric code coverage so an aggregate percentage cannot hide the loss of a documented fallback or safety path.
+`test/behavior/required-behaviors.ts` lists the behavior checks that must pass in CI. CI checks these separately from the coverage thresholds so documented behavior is not protected only by an aggregate coverage percentage.
 
-`npm run test:coverage` runs the same deterministic suite under c8/V8 coverage. CI requires at least 95% statements, 85% branches, 100% functions, and 95% lines across `src/**/*.ts`, including source files not loaded by a test. Text, JSON summary, and LCOV reports are generated under `coverage/`.
+`npm run test:coverage` runs the same tests under c8/V8 coverage. CI requires at least 95% statements, 85% branches, 100% functions, and 95% lines across `src/**/*.ts`. Source files not loaded by a test are included in the coverage calculation. Text, JSON summary, and LCOV reports are generated under `coverage/`.
 
 `test/policy-matrix.test.ts` runs the adversarial policy corpus for N rounds and records TP/FP/TN/FN. The default is 30 rounds per case. `AR_MATRIX_ROUNDS` changes the count, and `AR_MATRIX_FAIL_ON_FALSE_ALLOW=1` makes a false allow fail the test.
 
@@ -102,7 +102,7 @@ npm test
 npm run test:coverage
 ```
 
-The test suite also imports DeepSeek Harness packages. CI installs the pinned Harness 0.1.0-rc.6 test package set from npm. For local development, install the matching packages without saving them to this package, or link them from a matching Harness checkout. The exact package set used by CI is in `.github/workflows/ci.yml`.
+The tests also import DeepSeek Harness packages. CI installs fixed 0.1.0-rc.6 versions of the Harness test dependencies from npm. For local development, install the same versions without saving them to this package, or link them from a matching Harness checkout. The dependency list and versions used by CI are in `.github/workflows/ci.yml`.
 
 ## License
 
