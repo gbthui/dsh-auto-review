@@ -142,7 +142,7 @@ dsh-auto-review:
 
 `denyOnReviewerError: true` 是默认值。reviewer 调用或结果处理出错时返回 `unavailable`，请求因此 fail closed；`unavailable` 不计入熔断器的 deny 数。设为 `false` 后，这类审批请求会继续交给下一个 answerer。
 
-以下情况都按 `denyOnReviewerError` 处理：端点或会话模型调用失败、最终文本为空、第一次解析失败后重试仍无法解析，以及 reviewer 请求了当前不可用的本地查询能力或超过了 fact-finding 限制。
+以下情况都按 `denyOnReviewerError` 处理：端点或会话模型调用失败、最终文本为空、第一次解析失败后重试仍无法解析，以及 reviewer 请求了当前不可用的本地查询能力或超过了 `factFinding` 配置的限制。
 
 风险等级为 `critical` 的请求不会被 reviewer 放行。即使模型返回 allow，最终结果仍按 deny 处理。
 
@@ -162,7 +162,7 @@ reviewer 可以返回 `need_fact`，先请求本地信息，再给出判定。�
 
 `inspect_text_file` 是本地查询中唯一可能把工作区文件内容发送给 reviewer 的工具，默认关闭。开启后仍受工作区范围限制，并拒绝二进制文件、超过 `maxBytes` 的文件和已知敏感路径，包括 `.env`、`.ssh/`、`.aws/`、`.kube/`、`.npmrc`、`.pypirc`、`.docker/`、`credentials.*`、`secrets.*` 和密钥文件。敏感文件名无法仅靠静态清单覆盖，因此文件内容查询默认关闭。
 
-fact finding 已关闭、内容读取未开启时请求 `inspect_text_file`，或者查询超过 `maxRounds` / `maxFacts`，都按 `denyOnReviewerError` 处理。
+`factFinding.enabled` 已关闭、内容读取未开启时请求 `inspect_text_file`，或者查询超过 `maxRounds` / `maxFacts`，都按 `denyOnReviewerError` 处理。
 
 ## 配置加载
 
