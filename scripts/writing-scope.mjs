@@ -2,6 +2,12 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
+const PROSE_KEYS = new Set(['description', 'displayname', 'label', 'message', 'name', 'summary', 'title'])
+
+function normalizedKey(value) {
+  return value.toLowerCase().replace(/[-_.]/g, '')
+}
+
 function walk(root, relativeDir, extensions) {
   const start = path.join(root, relativeDir)
   if (!existsSync(start)) return []
@@ -96,10 +102,17 @@ function openingFenceCandidate(line) {
   return { candidate, continuationIndent }
 }
 
+function isReleaseNotesFile(name) {
+  return /^(?:CHANGELOG|CHANGES|HISTORY|RELEASE_NOTES)(?:[._-].*)?\.md$/i.test(name)
+}
+
 export function collectWritingFiles(root) {
   const files = new Set()
   for (const file of ['README.md', 'README.zh.md', 'package.json', 'cordis.patch.yml']) {
     if (existsSync(path.join(root, file))) files.add(file)
+  }
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (entry.isFile() && isReleaseNotesFile(entry.name)) files.add(entry.name)
   }
   for (const file of walk(root, 'docs', new Set(['.md']))) files.add(file)
   for (const file of walk(root, 'src', new Set(['.ts']))) files.add(file)
@@ -108,8 +121,10 @@ export function collectWritingFiles(root) {
   return [...files].sort()
 }
 
-function markdownWithoutFences(lines) {
+function markdownWithoutCodeBlocks(lines) {
   let fence = null
+  let inIndented = false
+  let previousBlank = true
 
   return lines.map((line) => {
     if (fence !== null) {
@@ -117,11 +132,8 @@ function markdownWithoutFences(lines) {
       candidate = stripIndent(candidate, fence.continuationIndent)
       candidate = withoutBlockquotePrefix(candidate)
       const closingFence = candidate.match(/^\s{0,3}(`{3,}|~{3,})[\t ]*$/)
-      if (
-        closingFence
-        && closingFence[1][0] === fence.marker
-        && closingFence[1].length >= fence.length
-      ) fence = null
+      if (closingFence && closingFence[1][0] === fence.marker && closingFence[1].length >= fence.length) fence = null
+      previousBlank = line.trim() === ''
       return ''
     }
 
@@ -132,24 +144,76 @@ function markdownWithoutFences(lines) {
       const info = openingFence[2]
       if (marker === '~' || !info.includes('`')) {
         fence = { marker, length: openingFence[1].length, continuationIndent }
+        inIndented = false
+        previousBlank = false
         return ''
       }
     }
 
+    const unquoted = withoutBlockquotePrefix(line)
+    const indented = /^(?: {4}|\t)/.test(unquoted)
+    if (inIndented) {
+      if (indented || unquoted.trim() === '') {
+        previousBlank = unquoted.trim() === ''
+        return ''
+      }
+      inIndented = false
+    }
+    if (indented && previousBlank) {
+      inIndented = true
+      previousBlank = false
+      return ''
+    }
+
+    previousBlank = unquoted.trim() === ''
     return line
   })
 }
 
+function markdownBoundary(line) {
+  const content = withoutBlockquotePrefix(line)
+  return {
+    heading: /^\s{0,3}#{1,6}(?:[\t ]+|$)/.test(content),
+    listItem: /^\s{0,3}(?:[-*+][\t ]+|\d+[.)][\t ]+)/.test(content),
+    referenceDefinition: /^\s{0,3}\[[^\]]+\]:/.test(content),
+  }
+}
+
+function stripMarkdownCodeSpans(lines) {
+  const output = [...lines]
+  let start = 0
+
+  const flush = (end) => {
+    if (end <= start) return
+    const stripped = stripCodeSpans(lines.slice(start, end).join('\n')).split('\n')
+    for (let index = 0; index < stripped.length; index += 1) output[start + index] = stripped[index]
+  }
+
+  for (let index = 0; index <= lines.length; index += 1) {
+    if (index === lines.length) {
+      flush(index)
+      break
+    }
+    const line = lines[index]
+    const boundary = markdownBoundary(line)
+    const separate = line.trim() === '' || boundary.heading || boundary.listItem || boundary.referenceDefinition
+    if (!separate) continue
+    flush(index)
+    if (line.trim() !== '') output[index] = stripCodeSpans(line)
+    start = index + 1
+  }
+
+  return output
+}
+
 export function markdownProseLines(text) {
   const sourceLines = text.split(/\r?\n/)
-  const withoutFences = markdownWithoutFences(sourceLines)
-  const withoutCodeSpans = stripCodeSpans(withoutFences.join('\n')).split('\n')
+  const withoutBlocks = markdownWithoutCodeBlocks(sourceLines)
+  const withoutCodeSpans = stripMarkdownCodeSpans(withoutBlocks)
 
   return withoutCodeSpans.map((line, index) => {
     const content = withoutBlockquotePrefix(line)
-    const heading = /^\s{0,3}#{1,6}(?:[\t ]+|$)/.test(content)
-    const listItem = /^\s{0,3}(?:[-*+][\t ]+|\d+[.)][\t ]+)/.test(content)
-    const referenceDefinition = /^\s{0,3}\[[^\]]+\]:/.test(content)
+    const { heading, listItem, referenceDefinition } = markdownBoundary(line)
     const prose = referenceDefinition ? '' : content
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/!\[([^\]]*)\]\[[^\]]*\]/g, '$1')
@@ -170,10 +234,28 @@ export function markdownProseLines(text) {
   })
 }
 
+function previousWord(text, index) {
+  const prefix = text.slice(0, index).match(/([A-Za-z_$][\w$]*)\s*$/)
+  return prefix?.[1] ?? ''
+}
+
+function canStartRegex(text, index, previousSignificant) {
+  if (previousSignificant === null || /[([{=,:;!&|?+\-*%^~<>]/.test(previousSignificant)) return true
+  return /^(?:await|case|delete|in|instanceof|new|of|return|throw|typeof|void|yield)$/.test(previousWord(text, index))
+}
+
+function normalizeScopeLines(scope, source) {
+  let normalized = scope.stripCode ? stripCodeSpans(source.join('\n')).split('\n') : [...source]
+  if (scope.kind === 'block-comment') normalized = normalized.map((line) => line.replace(/^\s*\*\s?/, ''))
+  return normalized
+}
+
 export function typescriptProseLines(text) {
   let index = 0
   let line = 1
   let nextScopeId = 1
+  let previousSignificant = null
+  let continuableLineComment = null
   const scopes = []
 
   const makeScope = (kind, stripCode = false) => {
@@ -192,9 +274,13 @@ export function typescriptProseLines(text) {
     scope.parts.set(line, (scope.parts.get(line) ?? '') + value)
   }
 
-  const take = (scope = null) => {
+  const take = (scope = null, code = false) => {
     const value = text[index++]
     if (scope) append(scope, value)
+    if (code && !/\s/.test(value)) {
+      previousSignificant = value
+      continuableLineComment = null
+    }
     if (value === '\n') line += 1
     return value
   }
@@ -204,12 +290,17 @@ export function typescriptProseLines(text) {
   const parseLineComment = () => {
     take()
     take()
-    const scope = makeScope('line-comment', true)
+    const scope = continuableLineComment && continuableLineComment.endLine >= line - 1
+      ? continuableLineComment
+      : makeScope('line-comment', true)
+    scope.endLine = Math.max(scope.endLine, line)
     while (index < text.length && text[index] !== '\n') take(scope)
     if (index < text.length) take()
+    continuableLineComment = scope
   }
 
   const parseBlockComment = () => {
+    continuableLineComment = null
     take()
     take()
     const scope = makeScope('block-comment', true)
@@ -224,6 +315,7 @@ export function typescriptProseLines(text) {
   }
 
   const parseQuoted = (quote) => {
+    continuableLineComment = null
     take()
     const scope = makeScope('string')
     let escaped = false
@@ -231,6 +323,7 @@ export function typescriptProseLines(text) {
       const char = text[index]
       if (!escaped && char === quote) {
         take()
+        previousSignificant = quote
         return
       }
       if (!escaped && char === '\n') {
@@ -243,9 +336,43 @@ export function typescriptProseLines(text) {
     }
   }
 
+  const parseRegex = () => {
+    continuableLineComment = null
+    take()
+    let escaped = false
+    let inClass = false
+    while (index < text.length) {
+      const char = text[index]
+      take()
+      if (escaped) {
+        escaped = false
+        continue
+      }
+      if (char === '\\') {
+        escaped = true
+        continue
+      }
+      if (char === '[') {
+        inClass = true
+        continue
+      }
+      if (char === ']' && inClass) {
+        inClass = false
+        continue
+      }
+      if (char === '/' && !inClass) {
+        while (index < text.length && /[A-Za-z]/.test(text[index])) take()
+        previousSignificant = '/'
+        return
+      }
+      if (char === '\n') return
+    }
+  }
+
   let parseCode
 
   const parseTemplate = () => {
+    continuableLineComment = null
     take()
     const scope = makeScope('template')
     let escaped = false
@@ -263,6 +390,7 @@ export function typescriptProseLines(text) {
       }
       if (char === '`') {
         take()
+        previousSignificant = '`'
         return
       }
       if (starts('${')) {
@@ -300,18 +428,22 @@ export function typescriptProseLines(text) {
         parseTemplate()
         continue
       }
+      if (char === '/' && canStartRegex(text, index, previousSignificant)) {
+        parseRegex()
+        continue
+      }
       if (depth > 0 && char === '{') {
         depth += 1
-        take()
+        take(null, true)
         continue
       }
       if (depth > 0 && char === '}') {
         depth -= 1
-        take()
+        take(null, true)
         if (depth === 0) return
         continue
       }
-      take()
+      take(null, true)
     }
   }
 
@@ -320,10 +452,8 @@ export function typescriptProseLines(text) {
   const rows = []
   for (const scope of scopes) {
     const source = []
-    for (let lineNo = scope.startLine; lineNo <= scope.endLine; lineNo += 1) {
-      source.push(scope.parts.get(lineNo) ?? '')
-    }
-    const normalized = (scope.stripCode ? stripCodeSpans(source.join('\n')) : source.join('\n')).split('\n')
+    for (let lineNo = scope.startLine; lineNo <= scope.endLine; lineNo += 1) source.push(scope.parts.get(lineNo) ?? '')
+    const normalized = normalizeScopeLines(scope, source)
     for (let offset = 0; offset < normalized.length; offset += 1) {
       rows.push({
         line: scope.startLine + offset,
@@ -338,15 +468,82 @@ export function typescriptProseLines(text) {
   return rows.sort((a, b) => a.line - b.line || a.scope - b.scope)
 }
 
+function splitYamlComment(line) {
+  let quote = null
+  let escaped = false
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (quote === '"' && char === '\\') {
+      escaped = true
+      continue
+    }
+    if (quote) {
+      if (char === quote) quote = null
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === '#') return [line.slice(0, index), line.slice(index + 1)]
+  }
+  return [line, '']
+}
+
+function unquoteScalar(value) {
+  const trimmed = value.trim()
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return trimmed.slice(1, -1)
+    }
+  }
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) return trimmed.slice(1, -1).replaceAll("''", "'")
+  return trimmed
+}
+
+export function yamlProseLines(text) {
+  return text.split(/\r?\n/).map((line, index) => {
+    const [syntax, comment] = splitYamlComment(line)
+    const field = syntax.match(/^\s*(?:-\s*)?([A-Za-z0-9_.-]+):\s*(.*?)\s*$/)
+    const value = field && PROSE_KEYS.has(normalizedKey(field[1])) ? unquoteScalar(field[2]) : ''
+    const prose = [value, comment.trim()].filter(Boolean).join(' ')
+    return { line: index + 1, text: prose }
+  })
+}
+
+export function jsonMetadataProseLines(text) {
+  return text.split(/\r?\n/).map((line, index) => {
+    const match = line.match(/^\s*"([^"]+)"\s*:\s*"((?:\\.|[^"\\])*)"/)
+    if (!match || !PROSE_KEYS.has(normalizedKey(match[1]))) return { line: index + 1, text: '' }
+    let value = match[2]
+    try {
+      value = JSON.parse(`"${match[2]}"`)
+    } catch {}
+    return { line: index + 1, text: value }
+  })
+}
+
 export function proseLinesForFile(root, file) {
   const text = readFileSync(path.join(root, file), 'utf8')
   if (file.endsWith('.md')) return markdownProseLines(text)
   if (file.endsWith('.ts')) return typescriptProseLines(text)
+  if (file.endsWith('.yml') || file.endsWith('.yaml')) return yamlProseLines(text)
+  if (file.endsWith('.json')) return jsonMetadataProseLines(text)
   return text.split(/\r?\n/).map((line, index) => ({ line: index + 1, text: line }))
 }
 
+function normalizePhraseText(value) {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
 export function findPhraseMatches(rows, phrase, options = {}) {
-  const needle = phrase.toLowerCase()
+  const needle = normalizePhraseText(phrase).toLowerCase()
   if (!needle) return []
   const requireHan = options.requireHan === true
   const matches = []
@@ -358,7 +555,7 @@ export function findPhraseMatches(rows, phrase, options = {}) {
     const starts = []
 
     for (const row of block) {
-      const part = row.text.trim()
+      const part = normalizePhraseText(row.text)
       if (!part) continue
       if (text) {
         const preserveHanAdjacency = /\p{Script=Han}$/u.test(text) && /^\p{Script=Han}/u.test(part)
@@ -389,7 +586,7 @@ export function findPhraseMatches(rows, phrase, options = {}) {
 
   for (const row of rows) {
     if (row.breakBefore) flush()
-    if (row.text.trim() === '') flush()
+    if (normalizePhraseText(row.text) === '') flush()
     else {
       block.push(row)
       if (row.breakAfter) flush()
@@ -400,14 +597,11 @@ export function findPhraseMatches(rows, phrase, options = {}) {
 }
 
 export function addedLineNumbers(root, ref, files) {
-  const result = spawnSync(
-    'git',
-    ['-c', 'core.quotePath=false', 'diff', '--unified=0', `${ref}...HEAD`, '--', ...files],
-    { cwd: root, encoding: 'utf8' },
-  )
-  if (result.status !== 0) {
-    throw new Error(result.stderr || `git diff failed for base ${ref}`)
-  }
+  const result = spawnSync('git', ['-c', 'core.quotePath=false', 'diff', '--unified=0', `${ref}...HEAD`, '--', ...files], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+  if (result.status !== 0) throw new Error(result.stderr || `git diff failed for base ${ref}`)
 
   const selected = new Map()
   let file = null
