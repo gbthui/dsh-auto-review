@@ -88,7 +88,7 @@ rmSync(keyDir, { recursive: true, force: true })
   check('session reviewer without provider-model fails closed', errorText.includes('no provider/model'), true)
 }
 
-// A second malformed reply is a reviewer error and follows denyOnReviewerError.
+// A second malformed reply follows denyOnReviewerError.
 {
   let handler: any = null
   let calls = 0
@@ -113,7 +113,7 @@ rmSync(keyDir, { recursive: true, force: true })
   const agent = makeAgent()
   agent.session.events = [{ type: 'tool/call', data: { callId: 'malformed-delegate', name: 'bash', arguments: '{"command":"ls"}' } }]
   const out = await handler({ agent, toolName: 'bash', callId: 'malformed-delegate', reason: 'x' }, async () => 'DELEGATED')
-  check('double-malformed delegates when reviewer errors are delegated', out, 'DELEGATED')
+  check('double-malformed delegates when denyOnReviewerError is false', out, 'DELEGATED')
   check('double-malformed delegation retries once', calls, 2)
 }
 
