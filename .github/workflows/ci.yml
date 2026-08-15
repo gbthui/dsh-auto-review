@@ -35,7 +35,6 @@ jobs:
           files = [path for path in files if path]
           failures = []
 
-          # Assemble the sentinels so this check does not flag its own source.
           forbidden_fragments = (
               '.local' + '/share/deepseek-harness',
               '.writing' + '-corpus',
@@ -114,6 +113,26 @@ jobs:
             @deepseek-ai/dsh-tool-bash@0.1.0-rc.6 \
             @deepseek-ai/dsh-tools@0.1.0-rc.6 \
             @deepseek-ai/dsh-user-approval@0.1.0-rc.6
+
+      - name: Diagnose Harness package layout
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const path = require('node:path')
+          for (const name of ['@deepseek-ai/dsh-llm', '@deepseek-ai/cordis']) {
+            const dir = path.join('node_modules', ...name.split('/'))
+            console.log('\n###', name)
+            console.log('exists:', fs.existsSync(dir))
+            if (!fs.existsSync(dir)) continue
+            const pkgPath = path.join(dir, 'package.json')
+            console.log('entries:', fs.readdirSync(dir).sort().join(', '))
+            if (fs.existsSync(pkgPath)) {
+              const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+              console.log(JSON.stringify({ version: pkg.version, main: pkg.main, types: pkg.types, exports: pkg.exports, files: pkg.files }, null, 2))
+            }
+          }
+          NODE
 
       - name: Typecheck
         run: npm run typecheck
