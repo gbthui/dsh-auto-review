@@ -56,6 +56,15 @@ function makeContext(getService: (name: string) => unknown) {
   check('already-aborted approval returns cancelled', out, 'cancelled')
 }
 
+{
+  const { ctx, handler } = makeContext(() => { throw new Error('reviewer must not run') })
+  AutoReview(ctx as never, { policy: { maxInputChars: 20 }, audit: { enabled: false } })
+  const agent = makeAgent()
+  agent.session.events = [{ type: 'tool/call', data: { callId: 'oversized-input', name: 'bash', arguments: '{"command":"echo a command longer than the configured input limit"}' } }]
+  const out = await handler()({ agent, toolName: 'bash', callId: 'oversized-input', reason: 'x' }, async () => 'DELEGATED')
+  check('maxInputChars rejects oversized pending request without reviewer', out, 'rejected')
+}
+
 // /approve without a denial record
 {
   const commands: Record<string, any> = {}
