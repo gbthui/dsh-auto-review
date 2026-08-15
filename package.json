@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "c8": "12.0.0",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
   },
@@ -49,7 +50,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc && tsc -p tsconfig.test.json",
-    "test": "tsx test/units.test.ts && tsx test/pipeline.test.ts && tsx test/policy-cases.test.ts",
+    "test": "tsx test/run-tests.ts",
+    "test:coverage": "c8 --config .c8rc.json tsx test/run-tests.ts",
     "test:matrix": "tsx test/policy-matrix.test.ts",
     "test:e2e": "tsx test/runtime-e2e.test.ts",
     "prepack": "tsc -p tsconfig.build.json"
