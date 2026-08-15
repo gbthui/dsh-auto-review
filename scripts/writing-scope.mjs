@@ -169,21 +169,27 @@ function templatePartRows(node, sourceFile, text, scope, head = false) {
   return rawScopeRows(body, sourceLine(sourceFile, start), scope)
 }
 
-function collectCommentRanges(text) {
-  const ranges = []
-  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, text)
-  while (true) {
-    const kind = scanner.scan()
-    if (kind === ts.SyntaxKind.SingleLineCommentTrivia || kind === ts.SyntaxKind.MultiLineCommentTrivia) {
-      ranges.push({ kind, pos: scanner.getTokenPos(), end: scanner.getTextPos() })
-    }
-    if (kind === ts.SyntaxKind.EndOfFileToken) break
+function collectCommentRanges(sourceFile, text) {
+  const ranges = new Map()
+  const add = (range) => {
+    if (!range) return
+    ranges.set(`${range.pos}:${range.end}`, range)
   }
-  return ranges
+
+  const visit = (node) => {
+    for (const range of ts.getLeadingCommentRanges(text, node.getFullStart()) ?? []) add(range)
+    for (const range of ts.getTrailingCommentRanges(text, node.getEnd()) ?? []) add(range)
+    for (const child of node.getChildren(sourceFile)) visit(child)
+  }
+
+  visit(sourceFile)
+  for (const range of ts.getLeadingCommentRanges(text, 0) ?? []) add(range)
+  for (const range of ts.getTrailingCommentRanges(text, text.length) ?? []) add(range)
+  return [...ranges.values()].sort((a, b) => a.pos - b.pos)
 }
 
 function commentMarkdownGroups(sourceFile, text) {
-  const ranges = collectCommentRanges(text)
+  const ranges = collectCommentRanges(sourceFile, text)
   const groups = []
 
   for (const range of ranges) {
