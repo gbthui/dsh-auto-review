@@ -12,19 +12,16 @@ export declare const Config: z<Schemastery.ObjectS<{
         /** Verdict JSON is ~100-300 tokens; the cap only guards runaway output. */
         maxTokens: z<number, number>;
         /**
-         * Request-side reasoning control. The verdict ALWAYS comes from the
-         * final answer — chain-of-thought output is never parsed as an
-         * authorization. 'off' disables reasoning on the request side (endpoint
-         * path sends DeepSeek's `thinking:{type:disabled}`; session path maps to
-         * `reasoningEffort: off` when the provider is `deepseek-official`).
+         * Request-side reasoning control. Verdicts always come from final text;
+         * chain-of-thought is never parsed as authorization. On the endpoint path,
+         * 'off' sends `thinking:{type:disabled}`. On a `deepseek-official` session
+         * model, it sends `reasoningEffort: off`.
          */
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
         /**
-         * Bounded read-only fact finding: the reviewer may ask for a few LOCAL
-         * metadata facts (paths, directory stats, git remote/status) before its
-         * final verdict. Fixed semantic tools only — no shell, no network, no
-         * escalation, never a new approval ask. File content is available only
+         * Bounded read-only fact finding. Fixed tools only: no shell, network,
+         * escalation, or nested approval request. File content is available only
          * through inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
@@ -73,19 +70,16 @@ export declare const Config: z<Schemastery.ObjectS<{
         /** Verdict JSON is ~100-300 tokens; the cap only guards runaway output. */
         maxTokens: z<number, number>;
         /**
-         * Request-side reasoning control. The verdict ALWAYS comes from the
-         * final answer — chain-of-thought output is never parsed as an
-         * authorization. 'off' disables reasoning on the request side (endpoint
-         * path sends DeepSeek's `thinking:{type:disabled}`; session path maps to
-         * `reasoningEffort: off` when the provider is `deepseek-official`).
+         * Request-side reasoning control. Verdicts always come from final text;
+         * chain-of-thought is never parsed as authorization. On the endpoint path,
+         * 'off' sends `thinking:{type:disabled}`. On a `deepseek-official` session
+         * model, it sends `reasoningEffort: off`.
          */
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
         /**
-         * Bounded read-only fact finding: the reviewer may ask for a few LOCAL
-         * metadata facts (paths, directory stats, git remote/status) before its
-         * final verdict. Fixed semantic tools only — no shell, no network, no
-         * escalation, never a new approval ask. File content is available only
+         * Bounded read-only fact finding. Fixed tools only: no shell, network,
+         * escalation, or nested approval request. File content is available only
          * through inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
@@ -164,9 +158,9 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Structured evidence for the reviewer: recent human prompts (trusted
          * authorization, seq-tagged) plus untrusted execution context (assistant
          * text, tool calls, and tool-result facts). Reasoning blocks and
-         * plugin-injected context are never included. Older context may be trimmed,
-         * but the latest user authorization is never truncated; if it exceeds
-         * maxChars, the approval request fails closed before reviewer execution.
+         * plugin-injected context are never included. Older context may be trimmed.
+         * The latest user authorization is never truncated; if it exceeds maxChars,
+         * the caller fails closed before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -231,9 +225,9 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Structured evidence for the reviewer: recent human prompts (trusted
          * authorization, seq-tagged) plus untrusted execution context (assistant
          * text, tool calls, and tool-result facts). Reasoning blocks and
-         * plugin-injected context are never included. Older context may be trimmed,
-         * but the latest user authorization is never truncated; if it exceeds
-         * maxChars, the approval request fails closed before reviewer execution.
+         * plugin-injected context are never included. Older context may be trimmed.
+         * The latest user authorization is never truncated; if it exceeds maxChars,
+         * the caller fails closed before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -294,19 +288,16 @@ export declare const Config: z<Schemastery.ObjectS<{
         /** Verdict JSON is ~100-300 tokens; the cap only guards runaway output. */
         maxTokens: z<number, number>;
         /**
-         * Request-side reasoning control. The verdict ALWAYS comes from the
-         * final answer — chain-of-thought output is never parsed as an
-         * authorization. 'off' disables reasoning on the request side (endpoint
-         * path sends DeepSeek's `thinking:{type:disabled}`; session path maps to
-         * `reasoningEffort: off` when the provider is `deepseek-official`).
+         * Request-side reasoning control. Verdicts always come from final text;
+         * chain-of-thought is never parsed as authorization. On the endpoint path,
+         * 'off' sends `thinking:{type:disabled}`. On a `deepseek-official` session
+         * model, it sends `reasoningEffort: off`.
          */
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
         /**
-         * Bounded read-only fact finding: the reviewer may ask for a few LOCAL
-         * metadata facts (paths, directory stats, git remote/status) before its
-         * final verdict. Fixed semantic tools only — no shell, no network, no
-         * escalation, never a new approval ask. File content is available only
+         * Bounded read-only fact finding. Fixed tools only: no shell, network,
+         * escalation, or nested approval request. File content is available only
          * through inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
@@ -355,19 +346,16 @@ export declare const Config: z<Schemastery.ObjectS<{
         /** Verdict JSON is ~100-300 tokens; the cap only guards runaway output. */
         maxTokens: z<number, number>;
         /**
-         * Request-side reasoning control. The verdict ALWAYS comes from the
-         * final answer — chain-of-thought output is never parsed as an
-         * authorization. 'off' disables reasoning on the request side (endpoint
-         * path sends DeepSeek's `thinking:{type:disabled}`; session path maps to
-         * `reasoningEffort: off` when the provider is `deepseek-official`).
+         * Request-side reasoning control. Verdicts always come from final text;
+         * chain-of-thought is never parsed as authorization. On the endpoint path,
+         * 'off' sends `thinking:{type:disabled}`. On a `deepseek-official` session
+         * model, it sends `reasoningEffort: off`.
          */
         thinking: z<"default" | "off", "default" | "off">;
         extraSystemPrompt: z<string, string>;
         /**
-         * Bounded read-only fact finding: the reviewer may ask for a few LOCAL
-         * metadata facts (paths, directory stats, git remote/status) before its
-         * final verdict. Fixed semantic tools only — no shell, no network, no
-         * escalation, never a new approval ask. File content is available only
+         * Bounded read-only fact finding. Fixed tools only: no shell, network,
+         * escalation, or nested approval request. File content is available only
          * through inspect_text_file when factFinding.content.enabled is true.
          */
         factFinding: z<Schemastery.ObjectS<{
@@ -446,9 +434,9 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Structured evidence for the reviewer: recent human prompts (trusted
          * authorization, seq-tagged) plus untrusted execution context (assistant
          * text, tool calls, and tool-result facts). Reasoning blocks and
-         * plugin-injected context are never included. Older context may be trimmed,
-         * but the latest user authorization is never truncated; if it exceeds
-         * maxChars, the approval request fails closed before reviewer execution.
+         * plugin-injected context are never included. Older context may be trimmed.
+         * The latest user authorization is never truncated; if it exceeds maxChars,
+         * the caller fails closed before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;
@@ -513,9 +501,9 @@ export declare const Config: z<Schemastery.ObjectS<{
          * Structured evidence for the reviewer: recent human prompts (trusted
          * authorization, seq-tagged) plus untrusted execution context (assistant
          * text, tool calls, and tool-result facts). Reasoning blocks and
-         * plugin-injected context are never included. Older context may be trimmed,
-         * but the latest user authorization is never truncated; if it exceeds
-         * maxChars, the approval request fails closed before reviewer execution.
+         * plugin-injected context are never included. Older context may be trimmed.
+         * The latest user authorization is never truncated; if it exceeds maxChars,
+         * the caller fails closed before reviewer execution.
          */
         context: z<Schemastery.ObjectS<{
             enabled: z<boolean, boolean>;

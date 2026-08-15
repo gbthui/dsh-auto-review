@@ -3,15 +3,10 @@ import type { ResolvedConfig } from './config.ts';
 /** The turn number of the newest `turn/start` event (0 when unknown). */
 export declare function currentTurn(events: readonly SessionEvent[] | undefined): number;
 /**
- * Per-agent denial bookkeeping for the circuit breaker.
- *  - 'deny' counts toward the breaker: consecutive++ and a deny slot in
- *    the rolling window;
- *  - ANY non-denial — 'allow' AND 'unavailable' — resets the consecutive
- *    counter. Neither counts as a deny in the rolling window: reviewer
- *    unavailability is not evidence of danger, but it does break a denial
- *    streak.
- * The rolling window counts approval outcomes observed by the breaker, not
- * reviewer calls. Counters reset when the session moves to a new turn.
+ * Per-agent circuit-breaker state for the current turn.
+ * `deny` increments the consecutive count and records a deny in the rolling
+ * window. `allow` and `unavailable` reset the consecutive count and record a
+ * non-denial. State resets when the session moves to a new turn.
  */
 export declare class Breaker {
     private readonly state;
