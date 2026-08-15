@@ -1,0 +1,6 @@
+# dsh-auto-review bundle patch: the guardian answerer row, applied with the
+# other bundle layers. Config lives in the dsh-auto-review settings namespace
+# (~/.dsh/settings.yaml); the row itself carries no config.
+- insert:
+    - id: auto-review
+      name: 'dsh-auto-review'

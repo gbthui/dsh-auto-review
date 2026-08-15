@@ -1,0 +1,57 @@
+{
+  "name": "dsh-auto-review",
+  "description": "Auto-review guardian answerer for DeepSeek Harness: routes approval asks to a reviewer model with fail-closed integrity checks, a denial circuit breaker, anti-circumvention feedback injection, and a sha256-hashed audit trail.",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "Apache-2.0",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4",
+    "@deepseek-ai/dsh-llm": "*",
+    "@deepseek-ai/schemastery": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "files": [
+    "lib",
+    "src",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc && tsc -p tsconfig.test.json",
+    "test": "tsx test/units.test.ts && tsx test/pipeline.test.ts && tsx test/policy-cases.test.ts",
+    "test:matrix": "tsx test/policy-matrix.test.ts",
+    "test:e2e": "tsx test/runtime-e2e.test.ts",
+    "prepack": "tsc -p tsconfig.build.json"
+  }
+}
