@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { REQUIRED_BEHAVIORS } from './behavior/contract.ts'
+import { REQUIRED_BEHAVIORS } from './behavior/required-behaviors.ts'
 
 const suites = [
   'test/units.test.ts',
@@ -50,7 +50,7 @@ for (const suite of suites) await runSuite(suite)
 
 const missing = REQUIRED_BEHAVIORS.filter((item) => !observed.has(item.check))
 if (missing.length > 0) {
-  console.error('\nREQUIRED BEHAVIOR CONTRACT FAILED')
+  console.error('\nREQUIRED BEHAVIORS FAILED')
   for (const item of missing) {
     console.error(`  ${item.id} -> missing passing check: ${item.check}`)
     console.error(`    ${item.requirement}`)
@@ -58,4 +58,4 @@ if (missing.length > 0) {
   process.exit(1)
 }
 
-console.log(`\nREQUIRED BEHAVIOR CONTRACT PASSED (${REQUIRED_BEHAVIORS.length}/${REQUIRED_BEHAVIORS.length})`)
+console.log(`\nREQUIRED BEHAVIORS PASSED (${REQUIRED_BEHAVIORS.length}/${REQUIRED_BEHAVIORS.length})`)

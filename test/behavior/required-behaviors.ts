@@ -4,14 +4,7 @@ export interface RequiredBehavior {
   requirement: string
 }
 
-/**
- * Behaviors that must be observed as executed and passing in CI.
- *
- * Code coverage and this contract guard different failures. Coverage catches
- * untested control flow. This list keeps documented approval, reviewer,
- * evidence, fact-finding, breaker, audit, configuration, and command behavior
- * from disappearing while aggregate coverage remains above its threshold.
- */
+/** Behavior checks that CI requires in addition to code-coverage thresholds. */
 export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   // approval/request and allowRules
   { id: 'approval.prepend-answerer', check: 'handler registered with prepend', requirement: 'The auto-review answerer is registered before the interactive approval answerer.' },
@@ -23,10 +16,10 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   { id: 'approval.tool-filter', check: 'tool filter delegates excluded approval asks', requirement: 'Approval requests outside policy.tools delegate to the next answerer.' },
   { id: 'approval.pre-abort', check: 'already-aborted approval returns cancelled', requirement: 'An already aborted approval request returns cancelled.' },
   { id: 'approval.max-input', check: 'maxInputChars rejects oversized pending request without reviewer', requirement: 'A pending request larger than maxInputChars is rejected without truncation or reviewer execution.' },
-  { id: 'approval.authorization-overflow', check: 'authorization overflow fails closed', requirement: 'An over-budget latest user authorization fails closed without truncation.' },
-  { id: 'approval.missing-tool-call', check: 'missing tool call fails closed', requirement: 'A callId that cannot be resolved to its tool/call event fails closed.' },
+  { id: 'approval.authorization-overflow', check: 'authorization overflow fails closed', requirement: 'A latest user message larger than the context budget is rejected without truncation.' },
+  { id: 'approval.missing-tool-call', check: 'missing tool call fails closed', requirement: 'A callId that cannot be resolved to its tool/call event is rejected.' },
   { id: 'approval.no-call-id', check: 'callId-less ask delegates to human', requirement: 'An approval request without callId delegates to the next answerer.' },
-  { id: 'approval.post-denial-confirm', check: 'confirmed retry allows', requirement: '/approve reveal + confirm supplies one trusted retry authorization to the reviewer.' },
+  { id: 'approval.post-denial-confirm', check: 'confirmed retry allows', requirement: '/approve reveal + confirm supplies trusted authorization for one retry.' },
   { id: 'approval.post-denial-one-use', check: 'override consumed after one use', requirement: 'A post-denial approval is consumed after one exact-action retry.' },
 
   // reviewer and evidence
@@ -39,28 +32,28 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   { id: 'reviewer.api-key-env-precedence', check: 'resolveApiKey uses apiKeyEnv before apiKeyFile', requirement: 'Reviewer API keys resolve apiKeyEnv before apiKeyFile when apiKey is absent.' },
   { id: 'evidence.no-reasoning', check: 'evidence excludes reasoning', requirement: 'Agent reasoning is excluded from reviewer evidence.' },
   { id: 'evidence.no-raw-tool-result-default', check: 'evidence excludes raw tool-result text', requirement: 'Raw tool-result text is excluded unless rawToolResults is enabled.' },
-  { id: 'evidence.raw-tool-result-opt-in', check: 'rawToolResults true includes raw text', requirement: 'rawToolResults=true includes capped raw tool-result text in reviewer evidence.' },
+  { id: 'evidence.raw-tool-result-opt-in', check: 'rawToolResults true includes raw text', requirement: 'rawToolResults=true includes raw tool-result text in reviewer evidence.' },
   { id: 'reviewer.reasoning-only', check: 'reasoning-only output fails closed as unavailable', requirement: 'With the default reviewer-error policy, a response without final text returns unavailable.' },
-  { id: 'reviewer.malformed-retry', check: 'malformed verdict retried then allowed', requirement: 'One malformed reviewer reply gets one corrective retry.' },
+  { id: 'reviewer.malformed-retry', check: 'malformed verdict retried then allowed', requirement: 'One malformed reviewer reply gets one retry.' },
   { id: 'reviewer.double-malformed-default', check: 'double-malformed fails closed', requirement: 'With the default reviewer-error policy, a second malformed reviewer reply returns unavailable.' },
   { id: 'reviewer.double-malformed-delegate', check: 'double-malformed delegates when reviewer errors are delegated', requirement: 'A second malformed reviewer reply delegates when denyOnReviewerError is false.' },
   { id: 'reviewer.unavailable-default', check: 'reviewer-error fails closed as unavailable', requirement: 'Reviewer failure returns unavailable when denyOnReviewerError is enabled.' },
   { id: 'reviewer.unavailable-delegate', check: 'reviewer-error delegates when configured', requirement: 'Reviewer failure delegates when denyOnReviewerError is disabled.' },
   { id: 'reviewer.endpoint-no-key', check: 'endpoint reviewer without key fails before fetch', requirement: 'An explicit reviewer endpoint without an API key fails before fetch.' },
-  { id: 'reviewer.endpoint-http-error', check: 'endpoint reviewer exposes bounded HTTP failure', requirement: 'Reviewer HTTP errors are bounded before entering reviewer-error handling.' },
+  { id: 'reviewer.endpoint-http-error', check: 'endpoint reviewer exposes bounded HTTP failure', requirement: 'Reviewer HTTP errors are bounded before reviewer-error handling.' },
   { id: 'reviewer.session-no-llm', check: 'session reviewer without llm service fails closed', requirement: 'Session-model review requires the Harness llm service.' },
   { id: 'reviewer.session-no-provider-model', check: 'session reviewer without provider-model fails closed', requirement: 'Session-model review requires the calling agent provider and model.' },
   { id: 'reviewer.mid-review-abort', check: 'abort during reviewer failure returns cancelled', requirement: 'Cancellation during reviewer execution returns cancelled.' },
 
   // fact finding
-  { id: 'fact-finding.loop', check: 'fact loop reaches verdict', requirement: 'A bounded fact request can return observations and continue to a final verdict.' },
+  { id: 'fact-finding.loop', check: 'fact loop reaches verdict', requirement: 'A fact request can return observations and continue to a final verdict.' },
   { id: 'fact-finding.max-facts', check: 'fact query batch is clipped to remaining budget', requirement: 'maxFacts limits each fact request before fact execution.' },
   { id: 'fact-finding.limit-default', check: 'fact limit fails closed', requirement: 'With the default reviewer-error policy, exceeding fact-finding limits returns unavailable.' },
   { id: 'fact-finding.disabled-default', check: 'fact request with fact finding disabled returns unavailable by default', requirement: 'With the default reviewer-error policy, a fact request returns unavailable when factFinding.enabled is false.' },
-  { id: 'fact-finding.error-delegate', check: 'fact-finding error delegates when reviewer errors are delegated', requirement: 'Fact-finding capability errors delegate when denyOnReviewerError is false.' },
+  { id: 'fact-finding.error-delegate', check: 'fact-finding error delegates when reviewer errors are delegated', requirement: 'Fact-finding errors delegate when denyOnReviewerError is false.' },
   { id: 'fact-finding.content-opt-in', check: 'content request while disabled fails closed', requirement: 'inspect_text_file requires factFinding.content.enabled.' },
-  { id: 'fact-finding.content-external-endpoint', check: 'external endpoint receives content observation', requirement: 'When content inspection is enabled, an explicit reviewer endpoint can receive the requested bounded file content.' },
-  { id: 'fact-finding.content-session-model', check: 'session-model content inspection allowed', requirement: 'When content inspection is enabled, the session-model reviewer can receive the requested bounded file content.' },
+  { id: 'fact-finding.content-external-endpoint', check: 'external endpoint receives content observation', requirement: 'An explicit reviewer endpoint can receive requested file content when content inspection is enabled.' },
+  { id: 'fact-finding.content-session-model', check: 'session-model content inspection allowed', requirement: 'The session-model reviewer can receive requested file content when content inspection is enabled.' },
   { id: 'fact-finding.content-sensitive-path', check: 'sensitive path denied', requirement: 'inspect_text_file refuses known sensitive paths.' },
   { id: 'fact-finding.content-binary', check: 'binary denied', requirement: 'inspect_text_file refuses binary files.' },
   { id: 'fact-finding.content-max-bytes', check: 'oversized denied', requirement: 'inspect_text_file refuses files larger than factFinding.content.maxBytes.' },
@@ -72,9 +65,9 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
 
   // circuit breaker
   { id: 'breaker.trip', check: 'circuit breaker cancels turn', requirement: 'The configured consecutive denial limit trips the circuit breaker.' },
-  { id: 'breaker.window-limit', check: 'breaker window counts approval outcomes', requirement: 'The breaker rolling window counts approval outcomes in the current turn, not reviewer calls.' },
-  { id: 'breaker.turn-reset', check: 'breaker resets across turns', requirement: 'Breaker denial state resets on a new turn.' },
-  { id: 'breaker.reviewer-unavailable-neutral', check: 'infra errors never trip breaker', requirement: 'Reviewer unavailability does not count as a policy denial.' },
+  { id: 'breaker.window-limit', check: 'breaker window counts approval outcomes', requirement: 'The breaker window counts approval outcomes in the current turn, not reviewer calls.' },
+  { id: 'breaker.turn-reset', check: 'breaker resets across turns', requirement: 'Breaker state resets on a new turn.' },
+  { id: 'breaker.reviewer-unavailable-neutral', check: 'infra errors never trip breaker', requirement: 'Reviewer unavailability does not count as a denial.' },
   { id: 'breaker.non-denial-reset', check: 'unavailable breaks the streak: 2 consecutive after reset does not trip', requirement: 'A non-denial resets the consecutive-denial count.' },
   { id: 'breaker.action-off', check: 'breaker off performs no trip action', requirement: 'breaker.action=off does not inject or cancel when the breaker trips.' },
   { id: 'breaker.action-inject', check: 'breaker inject action explains without cancelling', requirement: 'breaker.action=inject injects the breaker notice without cancelling the agent turn.' },
@@ -88,12 +81,12 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   // configuration and commands
   { id: 'configuration.default-enabled', check: 'Config defaults enabled', requirement: 'The plugin is enabled by default.' },
   { id: 'configuration.invalid-allow-rule', check: 'empty allow-rule tool is rejected', requirement: 'An allowRules entry requires a non-empty tool name.' },
-  { id: 'configuration.invalid-row-config', check: 'structurally invalid row config refuses to arm', requirement: 'A structurally invalid plugin row config does not arm auto-review.' },
-  { id: 'configuration.live-update', check: 'live config: valid allow rule grants', requirement: 'A valid live settings update changes subsequent approval behavior without restarting the profile.' },
-  { id: 'configuration.invalid-live-update', check: 'invalid live update retains last known-good', requirement: 'An invalid live settings update keeps the last known-good config.' },
-  { id: 'configuration.settings-registration', check: 'settings registration failure falls back to valid row config', requirement: 'A settings registration failure uses the valid plugin row config.' },
-  { id: 'configuration.settings-read-before-good', check: 'settings read failure before any good config delegates safely', requirement: 'A settings read failure before any valid config delegates approval to the next answerer.' },
-  { id: 'configuration.settings-read-after-good', check: 'settings read failure retains last known-good config', requirement: 'A transient settings read failure keeps the last known-good config.' },
+  { id: 'configuration.invalid-row-config', check: 'structurally invalid row config refuses to arm', requirement: 'An invalid row config does not arm auto-review.' },
+  { id: 'configuration.live-update', check: 'live config: valid allow rule grants', requirement: 'A valid settings update changes subsequent approval behavior without restarting the profile.' },
+  { id: 'configuration.invalid-live-update', check: 'invalid live update retains last known-good', requirement: 'An invalid settings update keeps the last valid config.' },
+  { id: 'configuration.settings-registration', check: 'settings registration failure falls back to valid row config', requirement: 'If settings registration fails, a valid row config is used.' },
+  { id: 'configuration.settings-read-before-good', check: 'settings read failure before any good config delegates safely', requirement: 'A settings read failure before any valid config delegates to the next answerer.' },
+  { id: 'configuration.settings-read-after-good', check: 'settings read failure retains last known-good config', requirement: 'A settings read failure after a valid config keeps the last valid config.' },
   { id: 'commands.toggle', check: 'command bare toggles to false', requirement: '/auto-review with no argument toggles the enabled setting.' },
   { id: 'commands.status', check: 'command status succeeds', requirement: '/auto-review status reports the effective configuration.' },
   { id: 'commands.no-settings-provider', check: 'auto-review toggle without settings provider errors', requirement: '/auto-review does not report a persisted toggle when the settings service is unavailable.' },
