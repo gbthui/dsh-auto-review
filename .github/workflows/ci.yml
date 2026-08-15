@@ -73,9 +73,6 @@ jobs:
           grep -Fqx "README.md: ${en_sha}" README.i18n.yaml
           grep -Fqx "README.zh.md: ${zh_sha}" README.i18n.yaml
 
-      - name: Check terminology
-        run: npm run check:terminology
-
   test:
     name: test / latest Node LTS
     runs-on: ubuntu-latest
@@ -97,8 +94,14 @@ jobs:
             "@types/node@${NODE_MAJOR}" \
             c8@12.0.0 \
             jieba-wasm@2.4.0 \
+            remark-parse@11.0.0 \
             tsx@4.23.12 \
-            typescript@7.0.2
+            typescript@7.0.2 \
+            unified@11.0.5 \
+            yaml@2.9.0
+
+      - name: Check terminology
+        run: npm run check:terminology
 
       - name: Install pinned DeepSeek Harness test dependencies
         shell: bash
