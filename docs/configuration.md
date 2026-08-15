@@ -34,8 +34,8 @@ dsh-auto-review:
   policy:
     tools: []                        # empty = review every ask; a list = only these tools
     allowRules: []                   # direct no-review allow rules; see below
-    maxInputChars: 16000             # oversized requests are denied, never truncated
-    denyOnReviewerError: true        # reviewer unreachable -> fail closed
+    maxInputChars: 16000             # oversized requests are rejected, never truncated
+    denyOnReviewerError: true        # reviewer errors -> unavailable (fail closed)
     context:
       enabled: true                  # the context sent to the reviewer
       maxMessages: 10
@@ -46,7 +46,7 @@ dsh-auto-review:
     enabled: true
     consecutiveDenyLimit: 3
     windowSize: 50
-    windowDenyLimit: 10              # or 10 denials in 50 reviews
+    windowDenyLimit: 10              # or 10 denials in the rolling approval-outcome window
     action: cancel                   # cancel | inject | off
 
   audit:
@@ -71,7 +71,7 @@ An external endpoint receives the reviewer policy, the pending request's tool na
 
 Tool arguments can contain sensitive values such as paths, URLs, or code. Configure an endpoint that is permitted to receive that data.
 
-Keys are resolved in this order: `apiKey` → `apiKeyEnv` → `apiKeyFile`. `apiKeyEnv` reads a process environment variable. `apiKeyFile` reads the first `NAME=value` line and does not accept quotes or `export`. If no key resolves, the reviewer call fails and the request follows fail-closed behavior.
+Keys are resolved in this order: `apiKey` → `apiKeyEnv` → `apiKeyFile`. `apiKeyEnv` reads a process environment variable. `apiKeyFile` reads the first non-comment `NAME=value` line. It does not parse shell syntax such as `export` or quoted values; use an unquoted value. If no key resolves, the reviewer call enters reviewer-error handling.
 
 ## thinking
 
@@ -95,11 +95,11 @@ In every case, allow/deny is read only from the reviewer's final text answer. Ch
 
 ### Requests visible to the reviewer
 
-The reviewer handles only approval requests that can be matched to an exact tool call. The request's `callId` must match a `tool/call` event. If it cannot be matched, the request is denied. An approval request without a `callId` is not treated as a tool request and continues to the human answerer.
+The reviewer handles only approval requests that can be matched to an exact tool call. The request's `callId` must match a `tool/call` event. If it cannot be matched, the request is rejected. An approval request without a `callId` is not treated as a tool request and continues to the human answerer.
 
-`maxInputChars` limits the pending request itself. An oversized request is denied before the reviewer is called. The latest user message is never truncated because its later text may narrow or revoke authorization. If that message cannot fit within the context budget, the request follows fail-closed behavior.
+`maxInputChars` limits the pending request itself. An oversized request is rejected before the reviewer is called. The request is not truncated. The latest user message is also never truncated because its later text may narrow or revoke authorization. If that message cannot fit within the context budget, the request is rejected without reviewer execution.
 
-Reviewer context is divided into trusted and untrusted input. Only user messages can authorize an action. Assistant text, tool calls, and tool results provide event context only. Tool results can contain prompt injection, so the default context includes only their length and sha256 summary. Newer user messages take precedence over older ones; a later revocation or narrowing overrides earlier authorization. Older messages that exceed the context budget are represented by sha256-only placeholders, which cannot authorize actions.
+Reviewer context is divided into trusted and untrusted input. Only user messages can authorize an action. Assistant text, tool calls, and tool results provide event context only. Tool results can contain prompt injection, so the default context includes only their length and sha256 summary. Set `rawToolResults: true` to include capped raw tool-result text. Newer user messages take precedence over older ones; a later revocation or narrowing overrides earlier authorization. Older messages that exceed the context budget are represented by sha256-only placeholders, which cannot authorize actions.
 
 ### Allow rules
 
@@ -138,13 +138,21 @@ This rule matches only requests with `sandbox_permissions: workspace-write`, and
 
 If no rule matches, the request continues to the reviewer. One ordering detail also matters: when `policy.tools` is non-empty, the plugin filters by that list first. A tool not listed in `policy.tools` never reaches either `allowRules` or the reviewer.
 
-### Failure handling
+### Reviewer-error handling
 
-`denyOnReviewerError: true` is the default. If the reviewer is unavailable, the result is `unavailable` and the request fails closed. Set it to `false` to pass these requests to the human answerer.
+`denyOnReviewerError: true` is the default. A reviewer error returns `unavailable`, which fails closed and is neutral for the circuit breaker. Set it to `false` to pass the approval request to the next answerer.
 
-An unparsable reviewer verdict gets one corrective retry. If the second result also cannot be parsed, the request fails closed. A `critical` request cannot be allowed by the reviewer; an allow verdict on a critical request is converted to deny.
+Reviewer errors include endpoint or session-model failures, an empty final answer, a second unparsable reply after the one corrective retry, and fact-finding requests that cannot be satisfied because the capability is disabled or a configured fact-finding limit has been reached. These cases all follow `denyOnReviewerError`.
 
-The circuit breaker counts within the current turn. Three consecutive denials, or ten denials among the latest fifty reviews, cancel the turn. Reviewer outages do not count as denials. Any non-denial resets the consecutive counter, so `deny → unavailable → deny → deny` has a consecutive count of two.
+A `critical` request cannot be allowed by the reviewer; an allow verdict on a critical request is converted to deny.
+
+### Circuit breaker
+
+The circuit breaker is scoped to the current turn. A denial increments both the consecutive count and the rolling window. `allow` and `unavailable` reset the consecutive count and add a non-denial slot to the window. Reviewer unavailability therefore breaks a consecutive denial streak but does not count as a denial.
+
+With the defaults, three consecutive denials or ten denials among the latest fifty approval outcomes observed by the breaker trigger it. The rolling window is over approval outcomes, not reviewer calls; direct `allowRules` grants and integrity-path denials also pass through breaker bookkeeping.
+
+`action: cancel` injects the breaker notice and cancels the current turn. `action: inject` injects the notice without cancelling. `action: off` performs neither action.
 
 ### Fact finding
 
@@ -154,16 +162,30 @@ These tools are restricted to the workspace. Paths are checked with realpath con
 
 `inspect_text_file` is the only fact-finding tool that can send workspace file content to the reviewer, and it is disabled by default. When enabled, it remains workspace-scoped and refuses binary files, files over `maxBytes`, and known sensitive paths including `.env`, `.ssh/`, `.aws/`, `.kube/`, `.npmrc`, `.pypirc`, `.docker/`, `credentials.*`, `secrets.*`, and key material. A static path list cannot identify every sensitive file, so content access remains opt-in.
 
+If the reviewer asks for facts while fact finding is disabled, asks for `inspect_text_file` while content inspection is disabled, or exceeds `maxRounds` / `maxFacts`, the request enters reviewer-error handling described above.
+
+## Configuration loading
+
+Valid settings changes apply live. An invalid live settings update is refused and the last known-good configuration remains active.
+
+If the settings service cannot be registered, a valid configuration supplied by the plugin row is used. If a settings read fails before any valid settings configuration has been observed, auto-review remains unarmed for that request and the approval continues to the next answerer. After a valid settings configuration has been observed, a transient read failure keeps that last known-good configuration.
+
+Updating plugin code still requires restarting the running profile.
+
+## Audit
+
+When enabled, audit records are appended to `audit.path`. Raw tool input is omitted by default and represented by `inputSha256`; `includeToolInput: true` stores the original tool input as well.
+
+An audit write failure is logged and contained inside the auditor. It does not replace or throw the approval outcome.
+
 ## Composer commands
 
 ### /auto-review
 
-With no arguments, `/auto-review` toggles the feature. `on` and `off` set the state; `status` prints the effective configuration, including what an external reviewer receives.
+With no arguments, `/auto-review` toggles the feature. `on` and `off` set the state; `status` prints the effective configuration, including what an external reviewer receives. A settings update failure is returned as a command error rather than reported as a successful toggle.
 
 ### /approve
 
 `/approve` lists the ten most recent denials in the current session. `/approve N` displays one record's tool, directory, complete arguments, risk, reason, and fingerprint. Displaying the record does not authorize anything.
 
 After `/approve N` has been displayed, `/approve N confirm` permits one retry of that exact action. The approval is sent to the reviewer as trusted evidence, and the retry still requires a reviewer verdict. `critical` actions remain denied. Records are kept in memory, up to ten per session, and are cleared when the current profile process exits.
-
-Settings changes apply live. Loading new plugin code requires restarting the running profile.
