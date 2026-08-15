@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check public-repository hygiene
         shell: bash
@@ -35,13 +35,14 @@ jobs:
           files = [path for path in files if path]
           failures = []
 
+          # Assemble the sentinels so this check does not flag its own source.
           forbidden_fragments = (
-              '.local/share/deepseek-harness',
-              '.writing-corpus',
-              '.validate-profile',
+              '.local' + '/share/deepseek-harness',
+              '.writing' + '-corpus',
+              '.validate' + '-profile',
           )
           allowed_home_names = {'example', 'foo'}
-          home_pattern = re.compile(r'/home/([^/\s]+)/')
+          home_pattern = re.compile('/' + 'home' + r'/([^/\s]+)/')
 
           for filename in files:
               path = pathlib.Path(filename)
@@ -56,7 +57,7 @@ jobs:
 
               for match in home_pattern.finditer(text):
                   if match.group(1) not in allowed_home_names:
-                      failures.append(f'{filename}: contains non-synthetic /home/<user>/ path')
+                      failures.append(f'{filename}: contains non-synthetic absolute home path')
 
           if failures:
               print('\n'.join(failures), file=sys.stderr)
@@ -82,9 +83,9 @@ jobs:
         node: ['22.20.0', '24.x']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
 
