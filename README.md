@@ -79,7 +79,7 @@ Every decision is written to `~/.dsh/auto-review-audit.jsonl`. Tool inputs are s
 
 `npm test` runs the test suites through `test/run-tests.ts`: `test/units.test.ts`, the behavior tests under `test/behavior/`, `test/pipeline.test.ts`, and `test/policy-cases.test.ts`. Cases that require a live reviewer are skipped when no reviewer endpoint is configured.
 
-`test/behavior/required-behaviors.ts` lists the behavior checks that must pass in CI. CI checks these separately from the coverage thresholds so documented behavior is not protected only by an aggregate coverage percentage.
+`test/behavior/required-behaviors.ts` lists the behavior checks that must pass in CI. CI checks these separately from the coverage thresholds; passing coverage does not replace the required behavior checks.
 
 `npm run test:coverage` runs the same tests under c8/V8 coverage. CI requires at least 95% statements, 85% branches, 100% functions, and 95% lines across `src/**/*.ts`. Source files not loaded by a test are included in the coverage calculation. Text, JSON summary, and LCOV reports are generated under `coverage/`.
 
