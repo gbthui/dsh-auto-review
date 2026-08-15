@@ -5,6 +5,7 @@ const suites = [
   'test/units.test.ts',
   'test/audit.test.ts',
   'test/branch-behavior.test.ts',
+  'test/host-fallbacks.test.ts',
   'test/pipeline.test.ts',
   'test/policy-cases.test.ts',
 ]
