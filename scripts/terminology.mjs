@@ -26,6 +26,11 @@ export function readTerminology(filePath) {
     currentKeys.add(key)
   }
 
+  const nonEmpty = (value, lineNo, line, label) => {
+    if (!value) fail(lineNo, line, `${label} must not be empty`)
+    return value
+  }
+
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]
     const lineNo = index + 1
@@ -70,7 +75,7 @@ export function readTerminology(filePath) {
       if (scalar) {
         currentList = null
         claimKey(scalar[1], lineNo, line)
-        const value = parseScalar(scalar[2])
+        const value = nonEmpty(parseScalar(scalar[2]), lineNo, line, scalar[1])
         if (scalar[1] === 'en') currentTerm.en = value
         else if (scalar[1] === 'zh') currentTerm.zh = value
         else currentTerm.code = value
@@ -86,7 +91,7 @@ export function readTerminology(filePath) {
 
       const listItem = line.match(/^      -\s+(.+?)\s*$/)
       if (listItem && currentList) {
-        const value = parseScalar(listItem[1])
+        const value = nonEmpty(parseScalar(listItem[1]), lineNo, line, `${currentList} item`)
         if (currentList === 'avoid_zh') currentTerm.avoidZh.push(value)
         else currentTerm.avoidEn.push(value)
         continue
@@ -98,7 +103,7 @@ export function readTerminology(filePath) {
     if (section === 'forbidden_zh' || section === 'forbidden_en') {
       const item = line.match(/^  -\s+(.+?)\s*$/)
       if (!item) fail(lineNo, line, `malformed ${section} entry`)
-      const value = parseScalar(item[1])
+      const value = nonEmpty(parseScalar(item[1]), lineNo, line, `${section} item`)
       ;(section === 'forbidden_zh' ? forbiddenZh : forbiddenEn).push(value)
       continue
     }
