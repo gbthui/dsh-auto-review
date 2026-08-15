@@ -122,7 +122,7 @@ rmSync(keyDir, { recursive: true, force: true })
   check('file metadata reports byte size', meta[2].result.kind === 'file' && meta[2].result.size === 5, true)
   check('content fact rejects directory', String(meta[3].result.error).includes('not a regular file'), true)
 
-  const malformed = sanitizeGitUrl('https://user:secret@example.invalid')
+  const malformed = sanitizeGitUrl('//user:secret@example.invalid')
   check('git URL fallback redacts credentials', JSON.stringify(malformed).includes('<redacted>'), true)
 
   if (process.platform !== 'win32') {
