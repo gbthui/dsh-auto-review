@@ -1,22 +1,96 @@
-version: 1
+version: 2
 
 terms:
   circuit-breaker:
     en: circuit breaker
     zh: 熔断器
     code: breaker
+    avoid_zh:
+      - breaker
+      - 断路器
   approval-outcome:
     en: approval outcome
     zh: 审批结果
+    avoid_zh:
+      - approval outcome
+      - approval outcomes
   rolling-window:
     en: rolling window
     zh: 滚动窗口
   last-valid-configuration:
     en: last valid configuration
     zh: 上一次有效配置
+    avoid_zh:
+      - 上一份合法配置
+      - 上一次合法配置
+      - 上一份已通过校验的配置
   required-behavior-check:
     en: required behavior check
     zh: 行为检查
+    avoid_zh:
+      - 行为契约
+  coverage-threshold:
+    en: coverage threshold
+    zh: 覆盖率阈值
+    avoid_zh:
+      - coverage 阈值
+  fallback-path:
+    en: fallback path
+    zh: 回退路径
+    avoid_zh:
+      - fallback
+  local-query:
+    en: local query
+    zh: 本地查询
+    avoid_zh:
+      - 事实查询
+  read-only-query-tool:
+    en: read-only query tool
+    zh: 只读查询工具
+    avoid_zh:
+      - 事实工具
+  manual-operation:
+    en: manual
+    zh: 手动
+    avoid_zh:
+      - 手工
+  lookup-path:
+    en: lookup path
+    zh: 查找路径
+    avoid_zh:
+      - 解析链
+  fingerprint:
+    en: fingerprint
+    zh: 指纹
+    code: fingerprint
+    avoid_zh:
+      - 身份哈希
+  symbolic-link:
+    en: symbolic link
+    zh: 符号链接
+    avoid_zh:
+      - 软链
+  process-flow:
+    en: flow
+    zh: 流程
+    avoid_zh:
+      - 管线
+  audit-record:
+    en: audit record
+    zh: 审计记录
+    avoid_zh:
+      - 台账
+  operation-prefix:
+    en: string prefix
+    zh: 字符串前缀
+    avoid_zh:
+      - 字面操作前缀
+      - 字面字符串前缀
+  retry:
+    en: retry
+    zh: 重试
+    avoid_zh:
+      - 纠正重试
   rejected-outcome:
     en: rejected
     zh: rejected
@@ -26,15 +100,17 @@ terms:
     zh: unavailable
     code: unavailable
 
-# Keep this list narrow. Entries should represent wording that has already
-# caused project-specific ambiguity or unnecessary abstraction.
-forbidden:
-  - "记账"
-  - "行为契约"
-  - "内部消化"
-  - "两道门槛"
-  - "确定性的源码测试"
-  - "breaker bookkeeping"
-  - "behavior contract"
-  - "contained inside the auditor"
-  - "deterministic source tests"
+# Hard failures are intentionally narrow. The terms above define the preferred
+# vocabulary; these phrases are rejected anywhere in project prose because
+# they add an unnecessary abstraction or repeatedly obscure the real behavior.
+forbidden_zh:
+  - 记账
+  - 内部消化
+  - 两道门槛
+  - 确定性的源码测试
+
+forbidden_en:
+  - behavior contract
+  - breaker bookkeeping
+  - contained inside the auditor
+  - deterministic source tests
