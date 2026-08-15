@@ -7,7 +7,7 @@ import { check, NL, report } from '../helpers.ts'
 
 // Tool arguments are hashed unless includeToolInput is enabled.
 {
-  const dir = mkdtempSync(path.join(tmpdir(), 'ar-audit-contract-'))
+  const dir = mkdtempSync(path.join(tmpdir(), 'ar-audit-record-'))
   const file = path.join(dir, 'audit.jsonl')
   const warnings: string[] = []
   let cfg = Config({ audit: { path: file, includeToolInput: false } })
@@ -72,7 +72,7 @@ import { check, NL, report } from '../helpers.ts'
   await auditor.record({ toolName: 'bash' } as never, undefined, undefined, {
     decision: 'deny', risk: 'low', reason: 'x', source: 'test', inputHash: 'b'.repeat(64), durationMs: 0, workspaceRoot: '', sandboxMode: '', toolCall: null,
   })
-  check('audit write failure is contained and logged', warnings.some((message) => message.includes('audit write failed')), true)
+  check('audit write failure logs warning and does not throw', warnings.some((message) => message.includes('audit write failed')), true)
   rmSync(dir, { recursive: true, force: true })
 }
 

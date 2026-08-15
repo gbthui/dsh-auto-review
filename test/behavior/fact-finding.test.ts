@@ -59,26 +59,46 @@ function makeContext(getService: (name: string) => unknown) {
   return { ctx, handler: () => handler }
 }
 
-// factFinding.enabled
+function needFactLlm() {
+  return {
+    stream: async function* () {
+      const text = '{"decision":"need_fact","fact_request":{"queries":[{"tool":"inspect_path","path":"x"}]}}'
+      yield { type: 'block-start', index: 0, blockType: 'text' }
+      yield { type: 'text-delta', index: 0, text }
+      yield { type: 'block-end', index: 0, block: { type: 'text', text } }
+      yield { type: 'finish', reason: 'stop' }
+    },
+  }
+}
+
+// factFinding.enabled=false with denyOnReviewerError=true
 {
-  const replies = ['{"decision":"need_fact","fact_request":{"queries":[{"tool":"inspect_path","path":"x"}]}}']
   const { ctx, handler } = makeContext((name) => {
-    if (name === 'llm') return {
-      stream: async function* () {
-        const text = replies.shift() ?? '{"decision":"deny","risk":"high","reason":"x"}'
-        yield { type: 'block-start', index: 0, blockType: 'text' }
-        yield { type: 'text-delta', index: 0, text }
-        yield { type: 'block-end', index: 0, block: { type: 'text', text } }
-        yield { type: 'finish', reason: 'stop' }
-      },
-    }
+    if (name === 'llm') return needFactLlm()
     throw new Error('no service')
   })
   AutoReview(ctx as never, { reviewer: { factFinding: { enabled: false } }, audit: { enabled: false } })
   const agent = makeAgent()
   agent.session.events = [{ type: 'tool/call', data: { callId: 'facts-off', name: 'bash', arguments: '{"command":"ls"}' } }]
   const out = await handler()({ agent, toolName: 'bash', callId: 'facts-off', reason: 'x' }, async () => 'DELEGATED')
-  check('fact request with fact finding disabled fails closed', out, 'unavailable')
+  check('fact request with fact finding disabled returns unavailable by default', out, 'unavailable')
+}
+
+// The same error delegates when denyOnReviewerError=false.
+{
+  const { ctx, handler } = makeContext((name) => {
+    if (name === 'llm') return needFactLlm()
+    throw new Error('no service')
+  })
+  AutoReview(ctx as never, {
+    reviewer: { factFinding: { enabled: false } },
+    policy: { denyOnReviewerError: false },
+    audit: { enabled: false },
+  })
+  const agent = makeAgent()
+  agent.session.events = [{ type: 'tool/call', data: { callId: 'facts-off-delegate', name: 'bash', arguments: '{"command":"ls"}' } }]
+  const out = await handler()({ agent, toolName: 'bash', callId: 'facts-off-delegate', reason: 'x' }, async () => 'DELEGATED')
+  check('fact request delegates when denyOnReviewerError is false', out, 'DELEGATED')
 }
 
 // maxFacts applies before fact execution
