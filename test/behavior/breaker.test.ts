@@ -18,6 +18,19 @@ import { check, makeAgent, report } from '../helpers.ts'
   check('zero window deny limit disables window trip', breaker.reason('b', noWindow), null)
 }
 
+// The rolling window counts approval outcomes, including non-denials.
+{
+  const breaker = new Breaker()
+  const cfg = Config({ breaker: { consecutiveDenyLimit: 99, windowSize: 50, windowDenyLimit: 10 } })
+  for (let i = 0; i < 9; i++) {
+    breaker.note('window-agent', 'deny', cfg, [])
+    breaker.note('window-agent', 'allow', cfg, [])
+  }
+  check('breaker window stays below limit after nine denials', breaker.reason('window-agent', cfg), null)
+  breaker.note('window-agent', 'deny', cfg, [])
+  check('breaker window counts approval outcomes', String(breaker.reason('window-agent', cfg)).includes('approval outcomes'), true)
+}
+
 function reviewerStream(queue: string[]) {
   return async function* () {
     const text = queue.shift() ?? '{"decision":"deny","risk":"medium","reason":"default deny"}'
