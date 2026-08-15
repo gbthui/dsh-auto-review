@@ -52,6 +52,7 @@
     "audit:zh": "node scripts/audit-zh-vocabulary.mjs",
     "build": "tsc -p tsconfig.build.json",
     "check:terminology": "node scripts/check-terminology.mjs",
+    "test:writing": "node --test scripts/writing-tools.test.mjs",
     "typecheck": "tsc && tsc -p tsconfig.test.json",
     "test": "tsx test/run-tests.ts",
     "test:coverage": "c8 --config .c8rc.json tsx test/run-tests.ts",

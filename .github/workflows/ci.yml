@@ -126,6 +126,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Test writing review tooling
+        run: npm run test:writing
+
       - name: Check Chinese vocabulary audit tooling
         run: npm run audit:zh -- --check
 
