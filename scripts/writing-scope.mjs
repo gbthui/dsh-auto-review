@@ -19,6 +19,50 @@ function walk(root, relativeDir, extensions) {
   return files
 }
 
+function backtickRunLength(text, start) {
+  let end = start
+  while (end < text.length && text[end] === '`') end += 1
+  return end - start
+}
+
+export function stripCodeSpans(text) {
+  let output = ''
+  let cursor = 0
+  let searchFrom = 0
+
+  while (searchFrom < text.length) {
+    const open = text.indexOf('`', searchFrom)
+    if (open < 0) break
+
+    const runLength = backtickRunLength(text, open)
+    let candidateFrom = open + runLength
+    let close = -1
+
+    while (candidateFrom < text.length) {
+      const candidate = text.indexOf('`', candidateFrom)
+      if (candidate < 0) break
+      const candidateLength = backtickRunLength(text, candidate)
+      if (candidateLength === runLength) {
+        close = candidate
+        break
+      }
+      candidateFrom = candidate + candidateLength
+    }
+
+    if (close < 0) {
+      searchFrom = open + runLength
+      continue
+    }
+
+    output += text.slice(cursor, open)
+    output += ' '
+    cursor = close + runLength
+    searchFrom = cursor
+  }
+
+  return cursor === 0 ? text : output + text.slice(cursor)
+}
+
 export function collectWritingFiles(root) {
   const files = new Set()
   for (const file of ['README.md', 'README.zh.md', 'package.json', 'cordis.patch.yml']) {
@@ -34,32 +78,51 @@ export function collectWritingFiles(root) {
 export function markdownProseLines(text) {
   const lines = text.split(/\r?\n/)
   let fence = null
+
   return lines.map((line, index) => {
-    const fenceMatch = line.match(/^\s{0,3}(`{3,}|~{3,})/)
-    if (fenceMatch) {
-      const marker = fenceMatch[1][0]
-      if (fence === null) fence = marker
-      else if (fence === marker) fence = null
+    if (fence !== null) {
+      const closingFence = line.match(/^\s{0,3}(`{3,}|~{3,})[\t ]*$/)
+      if (
+        closingFence
+        && closingFence[1][0] === fence.marker
+        && closingFence[1].length >= fence.length
+      ) fence = null
       return { line: index + 1, text: '' }
     }
-    if (fence !== null) return { line: index + 1, text: '' }
 
-    const prose = line
-      .replace(/`+[^`\n]*`+/g, ' ')
+    const openingFence = line.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/)
+    if (openingFence) {
+      const marker = openingFence[1][0]
+      const info = openingFence[2]
+      if (marker === '~' || !info.includes('`')) {
+        fence = { marker, length: openingFence[1].length }
+        return { line: index + 1, text: '' }
+      }
+    }
+
+    const heading = /^\s{0,3}#{1,6}(?:[\t ]+|$)/.test(line)
+    const listItem = /^\s{0,3}(?:[-*+][\t ]+|\d+[.)][\t ]+)/.test(line)
+    const prose = stripCodeSpans(line)
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
       .replace(/https?:\/\/\S+/g, ' ')
       .replace(/<[^>]+>/g, ' ')
       .replace(/^\s{0,3}(?:#{1,6}\s*|>\s*|[-*+]\s+|\d+[.)]\s+)/, '')
       .replace(/[\*_~]/g, '')
-    return { line: index + 1, text: prose }
+
+    return {
+      line: index + 1,
+      text: prose,
+      breakBefore: heading || listItem,
+      breakAfter: heading,
+    }
   })
 }
 
 export function proseLinesForFile(root, file) {
   const text = readFileSync(path.join(root, file), 'utf8')
   if (file.endsWith('.md')) return markdownProseLines(text)
-  return text.split(/\r?\n/).map((line, index) => ({ line: index + 1, text: line }))
+  return text.split(/\r?\n/).map((line, index) => ({ line: index + 1, text: stripCodeSpans(line) }))
 }
 
 export function findPhraseMatches(rows, phrase, options = {}) {
@@ -72,17 +135,23 @@ export function findPhraseMatches(rows, phrase, options = {}) {
     if (block.length === 0) return
     let text = ''
     const starts = []
+
     for (const row of block) {
       const part = row.text.trim()
       if (!part) continue
-      if (text) text += ' '
+      if (text) {
+        const preserveHanAdjacency = /\p{Script=Han}$/u.test(text) && /^\p{Script=Han}/u.test(part)
+        if (!preserveHanAdjacency) text += ' '
+      }
       starts.push({ offset: text.length, line: row.line })
       text += part
     }
+
     if (requireHan && !/\p{Script=Han}/u.test(text)) {
       block = []
       return
     }
+
     const folded = text.toLowerCase()
     let offset = folded.indexOf(needle)
     while (offset >= 0) {
@@ -98,8 +167,12 @@ export function findPhraseMatches(rows, phrase, options = {}) {
   }
 
   for (const row of rows) {
+    if (row.breakBefore) flush()
     if (row.text.trim() === '') flush()
-    else block.push(row)
+    else {
+      block.push(row)
+      if (row.breakAfter) flush()
+    }
   }
   flush()
   return matches
