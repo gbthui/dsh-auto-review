@@ -76,6 +76,33 @@ test('YAML and JSON expose prose without treating code as Chinese prose', () => 
   assert.deepEqual(findPhraseMatches(json, 'fallback', { requireHan: true }), [])
 })
 
+test('Markdown HTML blocks expose visible prose but ignore non-prose elements', () => {
+  assert.deepEqual(findPhraseMatches(markdownProseLines('<div>\nbehavior contract\n</div>\n'), 'behavior contract'), [2])
+  assert.deepEqual(findPhraseMatches(markdownProseLines('<script>\nbehavior contract\n</script>\n'), 'behavior contract'), [])
+})
+
+test('workflow run-name is part of YAML writing scope', () => {
+  assert.deepEqual(findPhraseMatches(yamlProseLines('run-name: behavior contract\n'), 'behavior contract'), [1])
+})
+
+test('YAML block scalar prose keeps physical source line numbers', () => {
+  const literal = yamlProseLines('name: |\n  first line\n  behavior contract\n')
+  assert.deepEqual(findPhraseMatches(literal, 'behavior contract'), [3])
+
+  const folded = yamlProseLines('name: >\n  behavior\n  contract\n')
+  assert.deepEqual(findPhraseMatches(folded, 'behavior contract'), [2])
+})
+
+test('TypeScript scanner finds standalone comments in empty blocks', () => {
+  const rows = typescriptProseLines('if (ready) {\n  // behavior contract\n}\n')
+  assert.deepEqual(findPhraseMatches(rows, 'behavior contract'), [2])
+})
+
+test('escaped string newlines do not shift prose onto a synthetic source line', () => {
+  const rows = typescriptProseLines('const message = "Error:\\n这里使用回退路径"\n')
+  assert.deepEqual(findPhraseMatches(rows, '回退路径', { requireHan: true }), [1])
+})
+
 test('earlier Markdown and TypeScript regressions remain covered', () => {
   assert.deepEqual(findPhraseMatches(markdownProseLines('> ```text\n> behavior contract\n> ```\n'), 'behavior contract'), [])
   assert.deepEqual(findPhraseMatches(markdownProseLines('- ```text\n  behavior contract\n  ```\n'), 'behavior contract'), [])
