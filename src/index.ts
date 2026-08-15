@@ -13,7 +13,7 @@
  *     human answerer instead).
  *   - Denials inject an anti-circumvention notice into the model-facing
  *     context, and a circuit breaker (3 consecutive denials, or 10 denials in
- *     the last 50 reviews) cancels the agent turn to stop denial loops.
+ *     the last 50 approval outcomes) cancels the agent turn to stop denial loops.
  *   - Every decision appends one JSON line to an audit file; tool input is
  *     stored as a sha256 hash unless `includeToolInput` is enabled.
  *   - The verdict must come from the model's FINAL answer; chain-of-thought
