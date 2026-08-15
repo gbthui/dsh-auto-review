@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: repository hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check public-repository hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib
+          import re
+          import subprocess
+          import sys
+
+          files = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          files = [path for path in files if path]
+          failures = []
+
+          # Assemble the sentinels so this check does not flag its own source.
+          forbidden_fragments = (
+              '.local' + '/share/deepseek-harness',
+              '.writing' + '-corpus',
+              '.validate' + '-profile',
+          )
+          allowed_home_names = {'example', 'foo'}
+          home_pattern = re.compile('/' + 'home' + r'/([^/\s]+)/')
+
+          for filename in files:
+              path = pathlib.Path(filename)
+              try:
+                  text = path.read_text(encoding='utf-8')
+              except (UnicodeDecodeError, OSError):
+                  continue
+
+              for fragment in forbidden_fragments:
+                  if fragment in text or fragment in filename:
+                      failures.append(f'{filename}: contains local-environment fragment {fragment!r}')
+
+              for match in home_pattern.finditer(text):
+                  if match.group(1) not in allowed_home_names:
+                      failures.append(f'{filename}: contains non-synthetic absolute home path')
+
+          if failures:
+              print('\n'.join(failures), file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Check bilingual README hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          en_sha="$(git hash-object README.md)"
+          zh_sha="$(git hash-object README.zh.md)"
+          grep -Fqx "README.md: ${en_sha}" README.i18n.yaml
+          grep -Fqx "README.zh.md: ${zh_sha}" README.i18n.yaml
+
+  test:
+    name: test / node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.20.0', '24.x']
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+
+      - name: Install pinned project tooling
+        shell: bash
+        run: |
+          npm install --no-save --ignore-scripts --package-lock=false --legacy-peer-deps \
+            @types/node@26.2.0 \
+            tsx@4.23.12 \
+            typescript@7.0.2
+
+      - name: Install pinned DeepSeek Harness test dependencies
+        shell: bash
+        run: |
+          npm install --no-save --ignore-scripts --package-lock=false \
+            @deepseek-ai/cordis@4.0.1 \
+            @deepseek-ai/schemastery@3.18.1 \
+            @deepseek-ai/dsh-agent@0.1.0-rc.6 \
+            @deepseek-ai/dsh-agent-loop@0.1.0-rc.6 \
+            @deepseek-ai/dsh-bash-sandbox@0.1.0-rc.6 \
+            @deepseek-ai/dsh-commands@0.1.0-rc.6 \
+            @deepseek-ai/dsh-jobs-local@0.1.0-rc.6 \
+            @deepseek-ai/dsh-llm@0.1.0-rc.6 \
+            @deepseek-ai/dsh-llm-deepseek@0.1.0-rc.6 \
+            @deepseek-ai/dsh-sandbox-local@0.1.0-rc.6 \
+            @deepseek-ai/dsh-sandbox-policy@0.1.0-rc.6 \
+            @deepseek-ai/dsh-session@0.1.0-rc.6 \
+            @deepseek-ai/dsh-shell-env@0.1.0-rc.6 \
+            @deepseek-ai/dsh-subprocess-local@0.1.0-rc.6 \
+            @deepseek-ai/dsh-system-prompt@0.1.0-rc.6 \
+            @deepseek-ai/dsh-tool-bash@0.1.0-rc.6 \
+            @deepseek-ai/dsh-tools@0.1.0-rc.6 \
+            @deepseek-ai/dsh-user-approval@0.1.0-rc.6
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and pipeline tests
+        run: npm test
+
+      - name: Rebuild committed package output
+        run: npm run build
+
+      - name: Check committed lib is current
+        run: git diff --exit-code -- lib
+
+      - name: Package smoke test
+        if: matrix.node == '24.x'
+        run: npm pack --dry-run
