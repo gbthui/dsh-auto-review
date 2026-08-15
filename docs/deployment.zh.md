@@ -118,7 +118,7 @@ tail -f ~/.dsh/auto-review-audit.jsonl
 
 | 症状 | 原因 | 处理 |
 | --- | --- | --- |
-| profile 启动失败，日志含 `failed to import loader entry auto-review` | 插件行没有进入 bundle 层，或第二条解析链缺失 | 检查 bundle 声明、`dsh.profile.bundles` 和 profiles 回退链接 |
+| profile 启动失败，日志含 `failed to import loader entry auto-review` | 插件行没有进入 bundle 层，或第二条查找路径缺失 | 检查 bundle 声明、`dsh.profile.bundles` 和 profiles 回退链接 |
 | 升级请求被拒，`source: reviewer-error` | reviewer 端点、密钥或模型配置有误 | 查看审计记录的 `reason`；直接测试端点；检查 `apiKeyFile` 的 `KEY=VALUE` 格式 |
 | 判定落在 `reasoning_content` 导致误拒（旧版本） | 旧版本行为；当前版本只读取最终答案 | 升级插件，或设置 `thinking: off` |
 | 拒绝理由为 `credential manipulation ... human execution only` | 凭据文件改动仅允许人工执行 | 用户自行执行，或运行 `/auto-review off` 后走人工审批 |
@@ -131,4 +131,4 @@ tail -f ~/.dsh/auto-review-audit.jsonl
 npx @deepseek-ai/dsh plugin --profile web remove dsh-auto-review
 ```
 
-删除 settings 中的 `dsh-auto-review:` 段（如果配置过），然后重新启动正在运行的 profile。手动安装的部署还需要删除手工创建的 bundle 条目和符号链接。
+删除 settings 中的 `dsh-auto-review:` 段（如果配置过），然后重新启动正在运行的 profile。手动安装的部署还需要删除手动创建的 bundle 条目和符号链接。
