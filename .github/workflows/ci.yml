@@ -92,6 +92,7 @@ jobs:
           NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]")"
           npm install --no-save --ignore-scripts --package-lock=false --legacy-peer-deps \
             "@types/node@${NODE_MAJOR}" \
+            @typescript/typescript6@6.0.2 \
             c8@12.0.0 \
             jieba-wasm@2.4.0 \
             remark-parse@11.0.0 \
