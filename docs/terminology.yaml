@@ -1,0 +1,40 @@
+version: 1
+
+terms:
+  circuit-breaker:
+    en: circuit breaker
+    zh: 熔断器
+    code: breaker
+  approval-outcome:
+    en: approval outcome
+    zh: 审批结果
+  rolling-window:
+    en: rolling window
+    zh: 滚动窗口
+  last-valid-configuration:
+    en: last valid configuration
+    zh: 上一次有效配置
+  required-behavior-check:
+    en: required behavior check
+    zh: 行为检查
+  rejected-outcome:
+    en: rejected
+    zh: rejected
+    code: rejected
+  unavailable-outcome:
+    en: unavailable
+    zh: unavailable
+    code: unavailable
+
+# Keep this list narrow. Entries should represent wording that has already
+# caused project-specific ambiguity or unnecessary abstraction.
+forbidden:
+  - "记账"
+  - "行为契约"
+  - "内部消化"
+  - "两道门槛"
+  - "确定性的源码测试"
+  - "breaker bookkeeping"
+  - "behavior contract"
+  - "contained inside the auditor"
+  - "deterministic source tests"
