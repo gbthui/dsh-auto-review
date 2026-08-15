@@ -114,7 +114,7 @@ rmSync(keyDir, { recursive: true, force: true })
   agent.session.events = [{ type: 'tool/call', data: { callId: 'malformed-delegate', name: 'bash', arguments: '{"command":"ls"}' } }]
   const out = await handler({ agent, toolName: 'bash', callId: 'malformed-delegate', reason: 'x' }, async () => 'DELEGATED')
   check('double-malformed delegates when reviewer errors are delegated', out, 'DELEGATED')
-  check('double-malformed delegation still performs one corrective retry', calls, 2)
+  check('double-malformed delegation retries once', calls, 2)
 }
 
 // Cancellation during reviewer execution
