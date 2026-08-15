@@ -24,6 +24,9 @@ terms:
       - 上一份合法配置
       - 上一次合法配置
       - 上一份已通过校验的配置
+    avoid_en:
+      - last valid configuration
+      - last valid config
   required-behavior-check:
     en: required behavior check
     zh: 行为检查
