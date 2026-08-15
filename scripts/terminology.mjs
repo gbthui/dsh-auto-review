@@ -15,9 +15,15 @@ export function readTerminology(filePath) {
   let section = null
   let currentTerm = null
   let currentList = null
+  let currentKeys = null
 
   const fail = (lineNo, line, message) => {
     throw new Error(`${filePath}:${lineNo}: ${message}: ${JSON.stringify(line)}`)
+  }
+
+  const claimKey = (key, lineNo, line) => {
+    if (currentKeys.has(key)) fail(lineNo, line, `duplicate key ${key} in terminology entry ${currentTerm.id}`)
+    currentKeys.add(key)
   }
 
   for (let index = 0; index < lines.length; index += 1) {
@@ -30,18 +36,21 @@ export function readTerminology(filePath) {
       section = 'terms'
       currentTerm = null
       currentList = null
+      currentKeys = null
       continue
     }
     if (/^forbidden_zh:\s*$/.test(line)) {
       section = 'forbidden_zh'
       currentTerm = null
       currentList = null
+      currentKeys = null
       continue
     }
     if (/^forbidden_en:\s*$/.test(line)) {
       section = 'forbidden_en'
       currentTerm = null
       currentList = null
+      currentKeys = null
       continue
     }
 
@@ -52,6 +61,7 @@ export function readTerminology(filePath) {
         currentTerm = { id: termStart[1], en: '', zh: '', code: '', avoidZh: [], avoidEn: [] }
         terms.set(currentTerm.id, currentTerm)
         currentList = null
+        currentKeys = new Set()
         continue
       }
       if (!currentTerm) fail(lineNo, line, 'expected a terminology entry')
@@ -59,6 +69,7 @@ export function readTerminology(filePath) {
       const scalar = line.match(/^    (en|zh|code):\s+(.+?)\s*$/)
       if (scalar) {
         currentList = null
+        claimKey(scalar[1], lineNo, line)
         const value = parseScalar(scalar[2])
         if (scalar[1] === 'en') currentTerm.en = value
         else if (scalar[1] === 'zh') currentTerm.zh = value
@@ -68,6 +79,7 @@ export function readTerminology(filePath) {
 
       const listStart = line.match(/^    (avoid_zh|avoid_en):\s*$/)
       if (listStart) {
+        claimKey(listStart[1], lineNo, line)
         currentList = listStart[1]
         continue
       }
