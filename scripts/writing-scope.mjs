@@ -200,23 +200,47 @@ export function yamlProseLines(text) {
 
   const rows = []
   let scope = 0
-  const visit = (node) => {
+  const seenComments = new Set()
+  const addMarkdownComment = (comment, startLine) => {
+    if (typeof comment !== 'string' || comment.trim() === '') return
+    const key = `${startLine}\0${comment}`
+    if (seenComments.has(key)) return
+    seenComments.add(key)
+    const commentRows = markdownProseLines(comment)
+    const offset = Math.max(0, startLine - 1)
+    const commentScope = ++scope
+    for (const row of commentRows) rows.push({ ...row, line: row.line + offset, scope: commentScope })
+  }
+
+  const visit = (node, fallbackLine = 1) => {
+    if (!node || typeof node !== 'object') return
+    const position = Array.isArray(node.range) ? node.range[0] : null
+    const startLine = position === null ? fallbackLine : lineCounter.linePos(position).line
+    const beforeLines = typeof node.commentBefore === 'string' ? node.commentBefore.split(/\r?\n/).length : 0
+    addMarkdownComment(node.commentBefore, Math.max(1, startLine - beforeLines))
+    addMarkdownComment(node.comment, startLine)
+
     if (isMap(node)) {
       for (const pair of node.items) {
+        visit(pair, startLine)
         const key = isScalar(pair.key) ? pair.key.value : undefined
         if (key === 'name' && isScalar(pair.value) && typeof pair.value.value === 'string') {
-          const position = pair.value.range?.[0] ?? 0
-          const startLine = lineCounter.linePos(position).line
-          rows.push(...plainScopeRows(pair.value.value, startLine, ++scope))
+          const valuePosition = pair.value.range?.[0] ?? position ?? 0
+          const valueLine = lineCounter.linePos(valuePosition).line
+          rows.push(...plainScopeRows(pair.value.value, valueLine, ++scope))
         }
-        if (pair.value) visit(pair.value)
+        if (pair.key) visit(pair.key, startLine)
+        if (pair.value) visit(pair.value, startLine)
       }
       return
     }
     if (isSeq(node)) {
-      for (const item of node.items) if (item) visit(item)
+      for (const item of node.items) if (item) visit(item, startLine)
     }
   }
+
+  addMarkdownComment(document.commentBefore, 1)
+  addMarkdownComment(document.comment, text.split(/\r?\n/).length)
   if (document.contents) visit(document.contents)
   return rows.sort((a, b) => a.line - b.line || a.scope - b.scope)
 }
