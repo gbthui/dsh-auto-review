@@ -1,3 +1,4 @@
+# Reference for human and agent review. CI does not scan repository prose against this file.
 version: 2
 
 terms:
@@ -18,12 +19,15 @@ terms:
     en: rolling window
     zh: 滚动窗口
   last-valid-configuration:
-    en: last valid configuration
+    en: last known-good configuration
     zh: 上一次有效配置
     avoid_zh:
       - 上一份合法配置
       - 上一次合法配置
       - 上一份已通过校验的配置
+    avoid_en:
+      - last valid configuration
+      - last valid config
   required-behavior-check:
     en: required behavior check
     zh: 行为检查
@@ -100,9 +104,9 @@ terms:
     zh: unavailable
     code: unavailable
 
-# Hard failures are intentionally narrow. The terms above define the preferred
-# vocabulary; these phrases are rejected anywhere in project prose because
-# they add an unnecessary abstraction or repeatedly obscure the real behavior.
+# These phrases should be rejected during human or agent review because they
+# repeatedly obscure the real behavior or add an unnecessary abstraction.
+# They are review cues, not CI search patterns.
 forbidden_zh:
   - 记账
   - 内部消化

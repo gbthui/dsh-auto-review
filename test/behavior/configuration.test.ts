@@ -53,7 +53,7 @@ import { auditFile, check, makeAgent, report } from '../helpers.ts'
   check('settings read failure is logged once', warnings.filter((message) => message.includes('settings read failed')).length, 1)
 }
 
-// A later settings read failure keeps the last valid config.
+// A later settings read failure keeps the last known-good configuration.
 {
   let handler: any = null
   let reads = 0
@@ -83,7 +83,7 @@ import { auditFile, check, makeAgent, report } from '../helpers.ts'
   const agent = makeAgent()
   agent.session.events = [{ type: 'tool/call', data: { callId: 'last-valid', name: 'bash', arguments: '{"command":"ls"}' } }]
   const out = await handler({ agent, toolName: 'bash', callId: 'last-valid', reason: 'x' }, async () => 'DELEGATED')
-  check('settings read failure keeps last valid config', out, 'allowed-once')
+  check('settings read failure keeps last known-good configuration', out, 'allowed-once')
   check('settings read failure logs warning', warnings.some((message) => message.includes('settings read failed')), true)
 }
 

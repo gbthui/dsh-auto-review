@@ -15,6 +15,6 @@ Complete the applicable items. Delete items that do not apply.
 - [ ] Exact identifiers, limits, precedence rules, fallback behavior, and outcomes were not summarized away.
 - [ ] Prose was reviewed against `docs/writing-guide.md`, including the LLM-writing-pattern checklist.
 - [ ] No new marketing language, ornamental contrast, forced parallelism, synonym rotation, unnecessary quotation marks, or paragraph-end recap was introduced.
-- [ ] If Chinese prose changed, `npm run audit:zh -- --base origin/main` was run and every emitted token was reviewed.
-- [ ] If Chinese prose changed, non-trivial tokens were checked with web search for established usage; single-character lexical tokens received a second pass and were replaced where ordinary multi-character wording is clearer.
+- [ ] If Chinese prose changed, each changed sentence and non-trivial term was reviewed in context; uncertain usage was checked against authoritative sources or representative web results.
 - [ ] If both English and Chinese documents cover the changed behavior, their identifiers, conditions, limits, fallback behavior, and outcomes still agree.
+- [ ] After the final content commit, Codex review was requested and every finding was addressed or explicitly dispositioned before merge.
