@@ -1,11 +1,14 @@
 import { spawn } from 'node:child_process'
-import { REQUIRED_BEHAVIORS } from './behavior-contract.ts'
+import { REQUIRED_BEHAVIORS } from './behavior/contract.ts'
 
 const suites = [
   'test/units.test.ts',
-  'test/audit.test.ts',
-  'test/branch-behavior.test.ts',
-  'test/host-fallbacks.test.ts',
+  'test/behavior/approval.test.ts',
+  'test/behavior/reviewer.test.ts',
+  'test/behavior/fact-finding.test.ts',
+  'test/behavior/breaker.test.ts',
+  'test/behavior/audit.test.ts',
+  'test/behavior/configuration.test.ts',
   'test/pipeline.test.ts',
   'test/policy-cases.test.ts',
 ]
@@ -47,15 +50,12 @@ for (const suite of suites) await runSuite(suite)
 
 const missing = REQUIRED_BEHAVIORS.filter((item) => !observed.has(item.check))
 if (missing.length > 0) {
-  console.error('\nCRITICAL BEHAVIOR CONTRACT FAILED')
+  console.error('\nREQUIRED BEHAVIOR CONTRACT FAILED')
   for (const item of missing) {
-    console.error(`  ${item.id} [${item.class}] -> missing passing check: ${item.check}`)
-    console.error(`    ${item.why}`)
+    console.error(`  ${item.id} -> missing passing check: ${item.check}`)
+    console.error(`    ${item.requirement}`)
   }
   process.exit(1)
 }
 
-const counts = new Map<string, number>()
-for (const item of REQUIRED_BEHAVIORS) counts.set(item.class, (counts.get(item.class) ?? 0) + 1)
-console.log('\nCRITICAL BEHAVIOR CONTRACT PASSED (' + REQUIRED_BEHAVIORS.length + '/' + REQUIRED_BEHAVIORS.length + ')')
-console.log('  ' + [...counts].map(([kind, count]) => `${kind}=${count}`).join('  '))
+console.log(`\nREQUIRED BEHAVIOR CONTRACT PASSED (${REQUIRED_BEHAVIORS.length}/${REQUIRED_BEHAVIORS.length})`)
