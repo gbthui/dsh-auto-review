@@ -24,13 +24,27 @@ check('fact parser rejects missing metadata path', threw, true)
 
 // Reviewer API key resolution
 process.env.AR_TEST_EMPTY_REVIEWER_KEY = '   '
+process.env.AR_TEST_REVIEWER_KEY = 'env-key'
 check('resolveApiKey trims direct value', await resolveApiKey({ apiKey: '  direct-key  ' }), 'direct-key')
 const keyDir = mkdtempSync(path.join(tmpdir(), 'ar-reviewer-key-'))
 const emptyKeyFile = path.join(keyDir, 'empty.env')
+const priorityKeyFile = path.join(keyDir, 'priority.env')
 writeFileSync(emptyKeyFile, '# comment only' + NL + 'not-an-assignment' + NL)
+writeFileSync(priorityKeyFile, 'REVIEWER_KEY=file-key' + NL)
+check(
+  'resolveApiKey uses apiKey before apiKeyEnv and apiKeyFile',
+  await resolveApiKey({ apiKey: 'direct-key', apiKeyEnv: 'AR_TEST_REVIEWER_KEY', apiKeyFile: priorityKeyFile }),
+  'direct-key',
+)
+check(
+  'resolveApiKey uses apiKeyEnv before apiKeyFile',
+  await resolveApiKey({ apiKeyEnv: 'AR_TEST_REVIEWER_KEY', apiKeyFile: priorityKeyFile }),
+  'env-key',
+)
 check('resolveApiKey empty env falls through to empty file then null', await resolveApiKey({ apiKeyEnv: 'AR_TEST_EMPTY_REVIEWER_KEY', apiKeyFile: emptyKeyFile }), null)
 check('resolveApiKey missing file falls through to null', await resolveApiKey({ apiKeyFile: path.join(keyDir, 'missing.env') }), null)
 delete process.env.AR_TEST_EMPTY_REVIEWER_KEY
+delete process.env.AR_TEST_REVIEWER_KEY
 rmSync(keyDir, { recursive: true, force: true })
 
 // Explicit reviewer endpoint
@@ -72,6 +86,35 @@ rmSync(keyDir, { recursive: true, force: true })
     await reviewWithSessionModel({ get: () => ({ stream: async function* () {} }) }, undefined, {}, { system: 's', user: 'u' })
   } catch (error) { errorText = String((error as Error).message) }
   check('session reviewer without provider-model fails closed', errorText.includes('no provider/model'), true)
+}
+
+// A second malformed reply follows denyOnReviewerError.
+{
+  let handler: any = null
+  let calls = 0
+  const ctx = {
+    logger: () => ({ warn: () => {}, error: () => {} }),
+    get: (name: string) => {
+      if (name === 'llm') return {
+        stream: async function* () {
+          calls++
+          const text = 'not-json'
+          yield { type: 'block-start', index: 0, blockType: 'text' }
+          yield { type: 'text-delta', index: 0, text }
+          yield { type: 'block-end', index: 0, block: { type: 'text', text } }
+          yield { type: 'finish', reason: 'stop' }
+        },
+      }
+      throw new Error('no service: ' + name)
+    },
+    on: (event: string, fn: unknown) => { if (event === 'approval/request') handler = fn },
+  }
+  AutoReview(ctx as never, { policy: { denyOnReviewerError: false }, audit: { enabled: false } })
+  const agent = makeAgent()
+  agent.session.events = [{ type: 'tool/call', data: { callId: 'malformed-delegate', name: 'bash', arguments: '{"command":"ls"}' } }]
+  const out = await handler({ agent, toolName: 'bash', callId: 'malformed-delegate', reason: 'x' }, async () => 'DELEGATED')
+  check('double-malformed delegates when denyOnReviewerError is false', out, 'DELEGATED')
+  check('double-malformed delegation retries once', calls, 2)
 }
 
 // Cancellation during reviewer execution
