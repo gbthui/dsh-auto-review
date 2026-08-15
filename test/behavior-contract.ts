@@ -21,13 +21,16 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   { id: 'core.typed-direct-allow', class: 'core', check: 'typed allow grants once', why: 'an exact typed allow rule grants one request without reviewer latency' },
   { id: 'core.fact-loop', class: 'core', check: 'fact loop reaches verdict', why: 'the reviewer can request bounded local facts and then reach a verdict' },
   { id: 'core.post-denial-approval', class: 'core', check: 'confirmed retry allows', why: 'the two-step /approve reveal + confirm path reaches a one-retry authorization' },
+  { id: 'core.audit-decision', class: 'core', check: 'audit defaults to hash-only decision record', why: 'every audited decision records its input identity while keeping raw tool input private by default' },
 
   { id: 'safety.no-danger-full-access-direct-rule', class: 'safety', check: 'danger-full-access never granted by allow rule', why: 'direct rules must never mint danger-full-access' },
   { id: 'safety.authorization-overflow', class: 'safety', check: 'authorization overflow fails closed', why: 'trusted user authorization is never silently truncated' },
   { id: 'safety.critical-normalization', class: 'safety', check: 'critical risk normalized to deny', why: 'a reviewer cannot allow a critical-risk action' },
   { id: 'safety.no-chain-of-thought-verdict', class: 'safety', check: 'chain-of-thought never parses as verdict', why: 'reasoning content is not accepted as the final authorization decision' },
   { id: 'safety.no-reasoning-egress', class: 'safety', check: 'evidence excludes reasoning', why: 'agent chain-of-thought is excluded from reviewer evidence' },
+  { id: 'safety.no-raw-tool-result-egress', class: 'safety', check: 'evidence excludes raw tool-result text', why: 'raw tool output is omitted by default because it is an untrusted prompt-injection surface' },
   { id: 'safety.content-egress-opt-in', class: 'safety', check: 'content request while disabled fails closed', why: 'workspace file content cannot leave the process without explicit opt-in' },
+  { id: 'safety.audit-raw-input-opt-in', class: 'safety', check: 'audit raw tool input requires explicit opt-in', why: 'raw tool arguments enter the audit file only after explicit configuration' },
 
   { id: 'fallback.reviewer-down-default', class: 'fallback', check: 'reviewer-error fails closed as unavailable', why: 'reviewer infrastructure failure does not accidentally authorize an action' },
   { id: 'fallback.reviewer-down-configured-delegate', class: 'fallback', check: 'reviewer-error delegates when configured', why: 'operators can explicitly fall back to interactive approval' },
