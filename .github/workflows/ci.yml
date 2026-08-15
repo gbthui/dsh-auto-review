@@ -74,27 +74,24 @@ jobs:
           grep -Fqx "README.zh.md: ${zh_sha}" README.i18n.yaml
 
   test:
-    name: test / node ${{ matrix.node }}
+    name: test / latest Node LTS
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        node: ['22.20.0', '24.x']
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: ${{ matrix.node }}
+          node-version: lts/*
           package-manager-cache: false
 
       - name: Install pinned project tooling
         shell: bash
         run: |
+          NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]")"
           npm install --no-save --ignore-scripts --package-lock=false --legacy-peer-deps \
-            @types/node@26.2.0 \
+            "@types/node@${NODE_MAJOR}" \
             tsx@4.23.12 \
             typescript@7.0.2
 
@@ -134,5 +131,4 @@ jobs:
         run: git diff --exit-code -- lib
 
       - name: Package smoke test
-        if: matrix.node == '24.x'
         run: npm pack --dry-run
