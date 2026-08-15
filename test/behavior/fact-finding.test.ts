@@ -71,7 +71,7 @@ function needFactLlm() {
   }
 }
 
-// factFinding.enabled with the default reviewer-error policy
+// factFinding.enabled=false with denyOnReviewerError=true
 {
   const { ctx, handler } = makeContext((name) => {
     if (name === 'llm') return needFactLlm()
@@ -84,7 +84,7 @@ function needFactLlm() {
   check('fact request with fact finding disabled returns unavailable by default', out, 'unavailable')
 }
 
-// Fact-finding capability errors follow denyOnReviewerError.
+// The same error delegates when denyOnReviewerError=false.
 {
   const { ctx, handler } = makeContext((name) => {
     if (name === 'llm') return needFactLlm()
@@ -98,7 +98,7 @@ function needFactLlm() {
   const agent = makeAgent()
   agent.session.events = [{ type: 'tool/call', data: { callId: 'facts-off-delegate', name: 'bash', arguments: '{"command":"ls"}' } }]
   const out = await handler()({ agent, toolName: 'bash', callId: 'facts-off-delegate', reason: 'x' }, async () => 'DELEGATED')
-  check('fact-finding error delegates when reviewer errors are delegated', out, 'DELEGATED')
+  check('fact request delegates when denyOnReviewerError is false', out, 'DELEGATED')
 }
 
 // maxFacts applies before fact execution
