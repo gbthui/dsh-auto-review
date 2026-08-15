@@ -94,7 +94,7 @@ jobs:
       - name: Install pinned DeepSeek Harness test dependencies
         shell: bash
         run: |
-          npm install --no-save --ignore-scripts --package-lock=false --legacy-peer-deps \
+          npm install --no-save --ignore-scripts --package-lock=false \
             @deepseek-ai/cordis@4.0.1 \
             @deepseek-ai/schemastery@3.18.1 \
             @deepseek-ai/dsh-agent@0.1.0-rc.6 \
