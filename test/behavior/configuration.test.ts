@@ -26,11 +26,11 @@ import { auditFile, check, makeAgent, report } from '../helpers.ts'
   const agent = makeAgent()
   agent.session.events = [{ type: 'tool/call', data: { callId: 'settings-reg-fail', name: 'bash', arguments: '{"command":"ls"}' } }]
   const out = await handler({ agent, toolName: 'bash', callId: 'settings-reg-fail', reason: 'x' }, async () => 'DELEGATED')
-  check('settings registration failure falls back to valid row config', out, 'allowed-once')
+  check('settings registration failure uses valid row config', out, 'allowed-once')
   check('settings registration failure is logged', warnings.some((message) => message.includes('settings registration failed')), true)
 }
 
-// A settings read failure before any valid config leaves approval to the next answerer.
+// A settings read failure before any valid config delegates to the next answerer.
 {
   let handler: any = null
   const warnings: string[] = []
@@ -49,16 +49,16 @@ import { auditFile, check, makeAgent, report } from '../helpers.ts'
   }
   AutoReview(ctx as never, {})
   const out = await handler({ agent: makeAgent(), toolName: 'bash', reason: 'x' }, async () => 'DELEGATED')
-  check('settings read failure before any good config delegates safely', out, 'DELEGATED')
+  check('settings read failure before valid config delegates', out, 'DELEGATED')
   check('settings read failure is logged once', warnings.filter((message) => message.includes('settings read failed')).length, 1)
 }
 
-// A transient settings read failure keeps the last validated config.
+// A later settings read failure keeps the last valid config.
 {
   let handler: any = null
   let reads = 0
   const warnings: string[] = []
-  const good = Config({
+  const valid = Config({
     policy: { allowRules: [{ tool: 'bash', operations: ['ls'], escalationTarget: '' }] },
     audit: { path: auditFile },
   })
@@ -69,8 +69,8 @@ import { auditFile, check, makeAgent, report } from '../helpers.ts'
         register: () => ({
           get: () => {
             reads++
-            if (reads === 1) return good
-            throw new Error('transient settings read failure')
+            if (reads === 1) return valid
+            throw new Error('settings read failed')
           },
           update: async () => {},
         }),
@@ -81,10 +81,10 @@ import { auditFile, check, makeAgent, report } from '../helpers.ts'
   }
   AutoReview(ctx as never, {})
   const agent = makeAgent()
-  agent.session.events = [{ type: 'tool/call', data: { callId: 'last-good', name: 'bash', arguments: '{"command":"ls"}' } }]
-  const out = await handler({ agent, toolName: 'bash', callId: 'last-good', reason: 'x' }, async () => 'DELEGATED')
-  check('settings read failure retains last known-good config', out, 'allowed-once')
-  check('last known-good settings fallback logs warning', warnings.some((message) => message.includes('settings read failed')), true)
+  agent.session.events = [{ type: 'tool/call', data: { callId: 'last-valid', name: 'bash', arguments: '{"command":"ls"}' } }]
+  const out = await handler({ agent, toolName: 'bash', callId: 'last-valid', reason: 'x' }, async () => 'DELEGATED')
+  check('settings read failure keeps last valid config', out, 'allowed-once')
+  check('settings read failure logs warning', warnings.some((message) => message.includes('settings read failed')), true)
 }
 
 // Invalid row config does not arm auto-review.
