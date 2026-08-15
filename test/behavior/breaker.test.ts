@@ -1,7 +1,7 @@
 import { apply as AutoReview, Breaker, Config, currentTurn } from '../../src/index.ts'
 import { check, makeAgent, report } from '../helpers.ts'
 
-// Breaker bookkeeping
+// Circuit-breaker state
 {
   const breaker = new Breaker()
   const disabled = Config({ breaker: { enabled: false } })
