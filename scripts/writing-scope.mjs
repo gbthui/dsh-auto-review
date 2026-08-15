@@ -67,6 +67,35 @@ function withoutBlockquotePrefix(line) {
   return line.replace(/^(?: {0,3}>[\t ]?)+/, '')
 }
 
+function stripIndent(line, width) {
+  let index = 0
+  let remaining = width
+  while (index < line.length && remaining > 0) {
+    if (line[index] === ' ') {
+      index += 1
+      remaining -= 1
+    } else if (line[index] === '\t') {
+      index += 1
+      remaining = Math.max(0, remaining - 4)
+    } else break
+  }
+  return line.slice(index)
+}
+
+function openingFenceCandidate(line) {
+  let candidate = withoutBlockquotePrefix(line)
+  let continuationIndent = 0
+
+  while (true) {
+    const list = candidate.match(/^ {0,3}(?:[-*+]|\d+[.)])[\t ]+/)
+    if (!list) break
+    continuationIndent += list[0].length
+    candidate = withoutBlockquotePrefix(candidate.slice(list[0].length))
+  }
+
+  return { candidate, continuationIndent }
+}
+
 export function collectWritingFiles(root) {
   const files = new Set()
   for (const file of ['README.md', 'README.zh.md', 'package.json', 'cordis.patch.yml']) {
@@ -83,9 +112,10 @@ function markdownWithoutFences(lines) {
   let fence = null
 
   return lines.map((line) => {
-    const candidate = withoutBlockquotePrefix(line)
-
     if (fence !== null) {
+      let candidate = withoutBlockquotePrefix(line)
+      candidate = stripIndent(candidate, fence.continuationIndent)
+      candidate = withoutBlockquotePrefix(candidate)
       const closingFence = candidate.match(/^\s{0,3}(`{3,}|~{3,})[\t ]*$/)
       if (
         closingFence
@@ -95,12 +125,13 @@ function markdownWithoutFences(lines) {
       return ''
     }
 
+    const { candidate, continuationIndent } = openingFenceCandidate(line)
     const openingFence = candidate.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/)
     if (openingFence) {
       const marker = openingFence[1][0]
       const info = openingFence[2]
       if (marker === '~' || !info.includes('`')) {
-        fence = { marker, length: openingFence[1].length }
+        fence = { marker, length: openingFence[1].length, continuationIndent }
         return ''
       }
     }
@@ -118,9 +149,13 @@ export function markdownProseLines(text) {
     const content = withoutBlockquotePrefix(line)
     const heading = /^\s{0,3}#{1,6}(?:[\t ]+|$)/.test(content)
     const listItem = /^\s{0,3}(?:[-*+][\t ]+|\d+[.)][\t ]+)/.test(content)
-    const prose = content
+    const referenceDefinition = /^\s{0,3}\[[^\]]+\]:/.test(content)
+    const prose = referenceDefinition ? '' : content
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/!\[([^\]]*)\]\[[^\]]*\]/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/\[([^\]]+)\]\[[^\]]*\]/g, '$1')
+      .replace(/\[([^\]]+)\]/g, '$1')
       .replace(/https?:\/\/\S+/g, ' ')
       .replace(/<[^>]+>/g, ' ')
       .replace(/^\s{0,3}(?:#{1,6}\s*|[-*+]\s+|\d+[.)]\s+)/, '')
@@ -129,96 +164,178 @@ export function markdownProseLines(text) {
     return {
       line: index + 1,
       text: prose,
-      breakBefore: heading || listItem,
-      breakAfter: heading,
+      breakBefore: heading || listItem || referenceDefinition,
+      breakAfter: heading || referenceDefinition,
     }
   })
 }
 
 export function typescriptProseLines(text) {
-  const lines = text.split(/\r?\n/)
-  let mode = 'code'
-  let escaped = false
+  let index = 0
+  let line = 1
+  let nextScopeId = 1
+  const scopes = []
 
-  return lines.map((line, index) => {
-    let visible = ''
-    const prose = []
-    let i = 0
+  const makeScope = (kind, stripCode = false) => {
+    const scope = { id: nextScopeId++, kind, stripCode, startLine: line, endLine: line, parts: new Map() }
+    scopes.push(scope)
+    return scope
+  }
 
-    const appendComment = (segment) => {
-      const stripped = stripCodeSpans(segment)
-      visible += stripped
-      prose.push(stripped)
+  const append = (scope, value) => {
+    if (value === '\r') return
+    if (value === '\n') {
+      scope.endLine = Math.max(scope.endLine, line + 1)
+      return
     }
+    scope.endLine = Math.max(scope.endLine, line)
+    scope.parts.set(line, (scope.parts.get(line) ?? '') + value)
+  }
 
-    while (i < line.length) {
-      if (mode === 'block-comment') {
-        const end = line.indexOf('*/', i)
-        if (end < 0) {
-          appendComment(line.slice(i))
-          i = line.length
-          continue
-        }
-        appendComment(line.slice(i, end + 2))
-        i = end + 2
-        mode = 'code'
-        continue
+  const take = (scope = null) => {
+    const value = text[index++]
+    if (scope) append(scope, value)
+    if (value === '\n') line += 1
+    return value
+  }
+
+  const starts = (value) => text.startsWith(value, index)
+
+  const parseLineComment = () => {
+    take()
+    take()
+    const scope = makeScope('line-comment', true)
+    while (index < text.length && text[index] !== '\n') take(scope)
+    if (index < text.length) take()
+  }
+
+  const parseBlockComment = () => {
+    take()
+    take()
+    const scope = makeScope('block-comment', true)
+    while (index < text.length) {
+      if (starts('*/')) {
+        take()
+        take()
+        return
       }
+      take(scope)
+    }
+  }
 
-      if (mode === 'code') {
-        if (line.startsWith('//', i)) {
-          appendComment(line.slice(i))
-          i = line.length
-          continue
-        }
-        if (line.startsWith('/*', i)) {
-          mode = 'block-comment'
-          continue
-        }
-        const char = line[i]
-        if (char === "'") mode = 'single'
-        else if (char === '"') mode = 'double'
-        else if (char === '`') mode = 'template'
-        visible += char
-        i += 1
-        continue
+  const parseQuoted = (quote) => {
+    take()
+    const scope = makeScope('string')
+    let escaped = false
+    while (index < text.length) {
+      const char = text[index]
+      if (!escaped && char === quote) {
+        take()
+        return
       }
+      if (!escaped && char === '\n') {
+        take()
+        return
+      }
+      take(scope)
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+    }
+  }
 
-      const delimiter = mode === 'single' ? "'" : mode === 'double' ? '"' : '`'
-      const char = line[i]
-      visible += char
+  let parseCode
 
+  const parseTemplate = () => {
+    take()
+    const scope = makeScope('template')
+    let escaped = false
+    while (index < text.length) {
+      const char = text[index]
       if (escaped) {
-        prose.push(char)
+        take(scope)
         escaped = false
-        i += 1
         continue
       }
       if (char === '\\') {
-        prose.push(char)
+        take(scope)
         escaped = true
-        i += 1
         continue
       }
-      if (char === delimiter) {
-        mode = 'code'
-        i += 1
+      if (char === '`') {
+        take()
+        return
+      }
+      if (starts('${')) {
+        append(scope, ' ')
+        take()
+        take()
+        parseCode(1)
         continue
       }
-
-      prose.push(char)
-      i += 1
+      take(scope)
     }
+  }
 
-    if (mode === 'single' || mode === 'double') {
-      mode = 'code'
-      escaped = false
-    } else if (mode !== 'template') {
-      escaped = false
+  parseCode = (braceDepth = 0) => {
+    let depth = braceDepth
+    while (index < text.length) {
+      if (starts('//')) {
+        parseLineComment()
+        continue
+      }
+      if (starts('/*')) {
+        parseBlockComment()
+        continue
+      }
+      const char = text[index]
+      if (char === "'") {
+        parseQuoted("'")
+        continue
+      }
+      if (char === '"') {
+        parseQuoted('"')
+        continue
+      }
+      if (char === '`') {
+        parseTemplate()
+        continue
+      }
+      if (depth > 0 && char === '{') {
+        depth += 1
+        take()
+        continue
+      }
+      if (depth > 0 && char === '}') {
+        depth -= 1
+        take()
+        if (depth === 0) return
+        continue
+      }
+      take()
     }
+  }
 
-    return { line: index + 1, text: visible, proseText: prose.join('') }
-  })
+  parseCode()
+
+  const rows = []
+  for (const scope of scopes) {
+    const source = []
+    for (let lineNo = scope.startLine; lineNo <= scope.endLine; lineNo += 1) {
+      source.push(scope.parts.get(lineNo) ?? '')
+    }
+    const normalized = (scope.stripCode ? stripCodeSpans(source.join('\n')) : source.join('\n')).split('\n')
+    for (let offset = 0; offset < normalized.length; offset += 1) {
+      rows.push({
+        line: scope.startLine + offset,
+        text: normalized[offset],
+        breakBefore: offset === 0,
+        breakAfter: offset === normalized.length - 1,
+        scope: scope.id,
+      })
+    }
+  }
+
+  return rows.sort((a, b) => a.line - b.line || a.scope - b.scope)
 }
 
 export function proseLinesForFile(root, file) {
@@ -230,6 +347,7 @@ export function proseLinesForFile(root, file) {
 
 export function findPhraseMatches(rows, phrase, options = {}) {
   const needle = phrase.toLowerCase()
+  if (!needle) return []
   const requireHan = options.requireHan === true
   const matches = []
   let block = []
@@ -246,8 +364,13 @@ export function findPhraseMatches(rows, phrase, options = {}) {
         const preserveHanAdjacency = /\p{Script=Han}$/u.test(text) && /^\p{Script=Han}/u.test(part)
         if (!preserveHanAdjacency) text += ' '
       }
-      starts.push({ offset: text.length, line: row.line, row })
+      starts.push({ offset: text.length, line: row.line })
       text += part
+    }
+
+    if (requireHan && !/\p{Script=Han}/u.test(text)) {
+      block = []
+      return
     }
 
     const folded = text.toLowerCase()
@@ -258,18 +381,7 @@ export function findPhraseMatches(rows, phrase, options = {}) {
         if (candidate.offset > offset) break
         start = candidate
       }
-
-      let accepted = true
-      if (requireHan) {
-        if (start?.row.proseText !== undefined) {
-          const scoped = start.row.proseText
-          accepted = /\p{Script=Han}/u.test(scoped) && scoped.toLowerCase().includes(needle)
-        } else {
-          accepted = /\p{Script=Han}/u.test(text)
-        }
-      }
-
-      if (accepted) matches.push(start?.line ?? block[0].line)
+      matches.push(start?.line ?? block[0].line)
       offset = folded.indexOf(needle, offset + Math.max(1, needle.length))
     }
     block = []
