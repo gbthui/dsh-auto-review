@@ -58,17 +58,17 @@ dsh-auto-review answers first
 
 The plugin registers as the first answerer for `approval/request`. Escalation requests reach the reviewer first, and each grant applies only to the current request.
 
-The reviewer receives the pending request, your user messages, the agent's recent activity, and summaries of tool results. Only user messages can authorize an action. The agent's chain of thought is not sent to the reviewer. Raw tool output is also omitted by default unless you explicitly enable it.
+The reviewer receives the pending request, your user messages, the agent's recent activity, and summaries of tool results. Only user messages in reviewer context can authorize an action. The agent's chain of thought is not sent to the reviewer. Raw tool output is omitted by default; `rawToolResults: true` explicitly includes capped raw tool-result text.
 
-The default behavior is fail closed. A request is denied if its exact tool call cannot be resolved, if it exceeds the size limit, or if the reviewer is unavailable. Malformed reviewer output gets one retry; a second parse failure denies the request.
+Integrity failures such as an unresolved exact tool call, an oversized pending request, or a latest user authorization that exceeds the context budget are `rejected` without reviewer execution. Reviewer errors return `unavailable` by default. Setting `denyOnReviewerError: false` delegates reviewer errors to the next answerer. Malformed reviewer output gets one corrective retry; a second parse failure follows the same reviewer-error handling.
 
-`allowRules` can grant requests without review by exact tool name and operation prefix. They never apply to `danger-full-access`.
+`allowRules` can grant requests without review by exact tool name and literal operation prefix. A rule can grant a `workspace-write` escalation only when that target is declared explicitly. `danger-full-access` cannot be granted through `allowRules`.
 
-The circuit breaker cancels the current turn after three consecutive denials or ten denials among the latest fifty reviews. This prevents repeated attempts at variations of the same operation.
+The circuit breaker is scoped to the current turn. With the defaults, it triggers after three consecutive denials or ten denials among the latest fifty approval outcomes observed by the breaker. `allow` and `unavailable` break a consecutive denial streak; reviewer unavailability does not count as a denial.
 
 Every decision is written to `~/.dsh/auto-review-audit.jsonl`. Tool inputs are stored as sha256 hashes by default. Set `includeToolInput` to true to store the original input.
 
-`/approve N` displays the tool, directory, complete arguments, and fingerprint for a denied action. `/approve N confirm` permits one retry of that exact action. The retry still passes through the reviewer.
+`/approve N` displays the tool, directory, complete arguments, and fingerprint for a denied action. Displaying a record does not authorize anything. `/approve N confirm` permits one retry of that exact action after the record has been displayed. The retry still passes through the reviewer.
 
 ## Documentation
 
@@ -77,13 +77,13 @@ Every decision is written to `~/.dsh/auto-review-audit.jsonl`. Tool inputs are s
 
 ## Tests
 
-The repository has four test suites. `test/units.test.ts` covers verdict parsing, the four-category classifier, sensitive-path matching, read-only fact tools and the hardened git probe, structured evidence, API-key resolution, reviewer request formatting, and an environment-gated live round trip.
+`npm test` runs the deterministic source tests through `test/run-tests.ts`. The runner executes `test/units.test.ts`, the domain behavior suites under `test/behavior/`, `test/pipeline.test.ts`, and `test/policy-cases.test.ts`. Live policy cases remain environment-gated and are skipped when no reviewer endpoint is configured.
 
-`test/pipeline.test.ts` runs the answerer pipeline with a mock context. It covers typed allow rules, the circuit breaker, injection policy, configuration validation, composer commands, and the local fact-finding loop.
+`test/behavior/contract.ts` lists the required behaviors that CI must observe as executed and passing. The contract covers the documented approval path, reviewer-error handling, evidence boundaries, fact finding, circuit breaker, audit behavior, live configuration, and commands. This is separate from numeric code coverage so an aggregate percentage cannot hide the loss of a documented fallback or safety path.
 
-`test/policy-cases.test.ts` contains adversarial policy cases for authorization revocation, narrowing, prompt injection, and catastrophic operations. It can run against a real endpoint with `AR_REVIEWER_BASE_URL`, `AR_REVIEWER_MODEL`, and `AR_REVIEWER_API_KEY`.
+`npm run test:coverage` runs the same deterministic suite under c8/V8 coverage. CI requires at least 95% statements, 85% branches, 100% functions, and 95% lines across `src/**/*.ts`, including source files not loaded by a test. Text, JSON summary, and LCOV reports are generated under `coverage/`.
 
-`test/policy-matrix.test.ts` repeats the same corpus for N rounds and records TP/FP/TN/FN. The default is 30 rounds per case. `AR_MATRIX_ROUNDS` changes the count, and `AR_MATRIX_FAIL_ON_FALSE_ALLOW=1` makes a false allow fail the test.
+`test/policy-matrix.test.ts` runs the adversarial policy corpus for N rounds and records TP/FP/TN/FN. The default is 30 rounds per case. `AR_MATRIX_ROUNDS` changes the count, and `AR_MATRIX_FAIL_ON_FALSE_ALLOW=1` makes a false allow fail the test.
 
 `npm run test:e2e` runs the Cordis/AgentLoop E2E path: sandbox denial, `approval/request`, reviewer `allowed-once`, retry execution, and reviewer denial. It requires the explicit `AR_E2E_API_KEY` environment variable. `AR_E2E_BASE_URL` and `AR_E2E_MODEL` are optional. Tests run directly on the TypeScript source through tsx.
 
@@ -96,12 +96,13 @@ Node does not type-strip source files under `node_modules`, so a source-only pac
 The security boundary is split across `src/` modules. `index.ts` is the entry point. `policy` contains the reviewer policy; `evidence` handles trusted and untrusted context and authorization completeness; `facts` provides read-only fact tools; `reviewer` handles model calls and verdict parsing; `approval-answerer` contains the decision path and `/approve` records; `breaker` implements the circuit breaker; `audit` writes JSONL records; `config` defines the schema; and `util` contains small helpers.
 
 ```bash
-npm install --save-dev typescript @types/node tsx
-npm run typecheck  # tsc for src (strict) plus test/src coverage
-npm test          # tsx test/*.test.ts: units + pipeline + policy corpus
+npm install
+npm run typecheck
+npm test
+npm run test:coverage
 ```
 
-Typechecking resolves the `@deepseek-ai/*` type packages from a local DeepSeek Harness `node_modules`. Symlink them into `node_modules/@deepseek-ai/`; they are not published as npm dependencies. `npm install` removes these symlinks, so recreate them afterward.
+The test suite also imports DeepSeek Harness packages. CI installs the pinned Harness 0.1.0-rc.6 test package set from npm. For local development, install the matching packages without saving them to this package, or link them from a matching Harness checkout. The exact package set used by CI is in `.github/workflows/ci.yml`.
 
 ## License
 
