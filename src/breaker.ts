@@ -22,10 +22,11 @@ interface TurnState {
  *  - 'deny' counts toward the breaker: consecutive++ and a deny slot in
  *    the rolling window;
  *  - ANY non-denial — 'allow' AND 'unavailable' — resets the consecutive
- *    counter (Codex semantics: any non-denial resets it). Neither counts
- *    as a deny in the window: reviewer infra failure is not evidence of
- *    danger, it just breaks a denial streak.
- * Counters reset when the session moves to a new turn.
+ *    counter. Neither counts as a deny in the rolling window: reviewer
+ *    unavailability is not evidence of danger, but it does break a denial
+ *    streak.
+ * The rolling window counts approval outcomes observed by the breaker, not
+ * reviewer calls. Counters reset when the session moves to a new turn.
  */
 export class Breaker {
   private readonly state = new Map<string, TurnState>()
@@ -57,7 +58,7 @@ export class Breaker {
     }
     const windowDenies = s.window.filter(Boolean).length
     if (c.breaker.windowDenyLimit > 0 && windowDenies >= c.breaker.windowDenyLimit) {
-      return 'circuit breaker: ' + windowDenies + ' denials in the last ' + s.window.length + ' reviews of this turn'
+      return 'circuit breaker: ' + windowDenies + ' denials in the last ' + s.window.length + ' approval outcomes of this turn'
     }
     return null
   }
