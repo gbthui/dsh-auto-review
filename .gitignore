@@ -1,0 +1,14 @@
+node_modules/
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# local credentials and environment files
+.env
+.env.*
+.npmrc
+*.key
+*.pem
+
+# build artifacts dropped by the harness TS loader
+src/*.js
