@@ -19,7 +19,7 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   { id: 'approval.authorization-overflow', check: 'authorization overflow fails closed', requirement: 'A latest user message larger than the context budget is rejected without truncation.' },
   { id: 'approval.missing-tool-call', check: 'missing tool call fails closed', requirement: 'A callId that cannot be resolved to its tool/call event is rejected.' },
   { id: 'approval.no-call-id', check: 'callId-less ask delegates to human', requirement: 'An approval request without callId delegates to the next answerer.' },
-  { id: 'approval.post-denial-confirm', check: 'confirmed retry allows', requirement: '/approve reveal + confirm supplies trusted authorization for one retry.' },
+  { id: 'approval.post-denial-confirm', check: 'confirmed retry allows', requirement: '/approve N followed by /approve N confirm supplies trusted authorization for one retry.' },
   { id: 'approval.post-denial-one-use', check: 'override consumed after one use', requirement: 'A post-denial approval is consumed after one exact-action retry.' },
 
   // reviewer and evidence
@@ -36,7 +36,7 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   { id: 'reviewer.reasoning-only', check: 'reasoning-only output fails closed as unavailable', requirement: 'With denyOnReviewerError=true, a response without final text returns unavailable.' },
   { id: 'reviewer.malformed-retry', check: 'malformed verdict retried then allowed', requirement: 'One malformed reviewer reply gets one retry.' },
   { id: 'reviewer.double-malformed-default', check: 'double-malformed fails closed', requirement: 'With denyOnReviewerError=true, a second malformed reviewer reply returns unavailable.' },
-  { id: 'reviewer.double-malformed-delegate', check: 'double-malformed delegates when reviewer errors are delegated', requirement: 'A second malformed reviewer reply delegates when denyOnReviewerError=false.' },
+  { id: 'reviewer.double-malformed-delegate', check: 'double-malformed delegates when denyOnReviewerError is false', requirement: 'A second malformed reviewer reply delegates when denyOnReviewerError=false.' },
   { id: 'reviewer.unavailable-default', check: 'reviewer-error fails closed as unavailable', requirement: 'Reviewer failure returns unavailable when denyOnReviewerError=true.' },
   { id: 'reviewer.unavailable-delegate', check: 'reviewer-error delegates when configured', requirement: 'Reviewer failure delegates when denyOnReviewerError=false.' },
   { id: 'reviewer.endpoint-no-key', check: 'endpoint reviewer without key fails before fetch', requirement: 'An explicit reviewer endpoint without an API key fails before fetch.' },
@@ -50,7 +50,7 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   { id: 'fact-finding.max-facts', check: 'fact query batch is clipped to remaining budget', requirement: 'maxFacts limits each fact request before fact execution.' },
   { id: 'fact-finding.limit-default', check: 'fact limit fails closed', requirement: 'With denyOnReviewerError=true, exceeding fact-finding limits returns unavailable.' },
   { id: 'fact-finding.disabled-default', check: 'fact request with fact finding disabled returns unavailable by default', requirement: 'With denyOnReviewerError=true, a fact request returns unavailable when factFinding.enabled=false.' },
-  { id: 'fact-finding.error-delegate', check: 'fact-finding error delegates when reviewer errors are delegated', requirement: 'Fact-finding errors delegate when denyOnReviewerError=false.' },
+  { id: 'fact-finding.error-delegate', check: 'fact request delegates when denyOnReviewerError is false', requirement: 'Fact-finding errors delegate when denyOnReviewerError=false.' },
   { id: 'fact-finding.content-opt-in', check: 'content request while disabled fails closed', requirement: 'inspect_text_file requires factFinding.content.enabled.' },
   { id: 'fact-finding.content-external-endpoint', check: 'external endpoint receives content observation', requirement: 'An explicit reviewer endpoint can receive requested file content when content inspection is enabled.' },
   { id: 'fact-finding.content-session-model', check: 'session-model content inspection allowed', requirement: 'The session-model reviewer can receive requested file content when content inspection is enabled.' },
@@ -76,7 +76,7 @@ export const REQUIRED_BEHAVIORS: RequiredBehavior[] = [
   // audit
   { id: 'audit.hash-default', check: 'audit defaults to hash-only decision record', requirement: 'Audit records store inputSha256 and omit raw tool input by default.' },
   { id: 'audit.raw-input-opt-in', check: 'audit raw tool input requires explicit opt-in', requirement: 'Raw tool input is written only when includeToolInput is enabled.' },
-  { id: 'audit.write-failure', check: 'audit write failure is contained and logged', requirement: 'Audit write failure is logged and not thrown by Auditor.record().' },
+  { id: 'audit.write-failure', check: 'audit write failure logs warning and does not throw', requirement: 'Audit write failure is logged and not thrown by Auditor.record().' },
 
   // configuration and commands
   { id: 'configuration.default-enabled', check: 'Config defaults enabled', requirement: 'The plugin is enabled by default.' },
