@@ -10,7 +10,7 @@ Use the name of the actual object, API, process, state, or outcome. Do not repla
 
 A public behavioral statement should be traceable to implementation, configuration, a command, or a deterministic test. If the prose and implementation disagree, resolve the disagreement. Do not weaken the prose until both descriptions merely sound compatible.
 
-Describe behavior with concrete actors, conditions, actions, and results. Prefer a direct statement such as “a settings read failure keeps the last valid configuration” over a new abstraction for the same behavior.
+Describe behavior with concrete actors, conditions, actions, and results. Prefer a direct statement such as “a settings read failure keeps the last known-good configuration” over a new abstraction for the same behavior.
 
 Do not infer deployment machinery that the project does not own. For example, distinguish a running Harness profile from an operating-system service, and distinguish a settings service from the profile process itself.
 
@@ -24,7 +24,7 @@ Do not infer deployment machinery that the project does not own. For example, di
 - Repeat the correct technical term when necessary. Do not rotate synonyms merely to avoid repetition.
 - Introduce a new public term only when it names a real semantic distinction. Add the canonical English and Chinese forms to `docs/terminology.yaml` in the same change.
 
-The `avoid_zh` entries are enforced in Chinese prose after Markdown code spans and code blocks are removed. They are alternatives that should be replaced with the corresponding canonical term. `forbidden_zh` and `forbidden_en` are deliberately smaller and are hard failures throughout project prose.
+The `avoid_zh` and `avoid_en` entries are enforced after Markdown code spans and code blocks are removed. They are alternatives that should be replaced with the corresponding canonical term. `forbidden_zh` and `forbidden_en` are deliberately smaller and are hard failures throughout project prose.
 
 ## 3. Chinese prose
 
@@ -120,6 +120,9 @@ For a prose change, review in this order:
 4. use web search to verify the ordinary usage of vocabulary introduced or retained by the Chinese change;
 5. review sentence and paragraph structure against the LLM-pattern checklist above;
 6. compare English and Chinese behavior where both versions cover the same subject;
-7. run the deterministic repository checks.
+7. run the deterministic repository checks;
+8. after the final content commit, request a Codex review and address or explicitly disposition every finding before merge.
+
+Codex review is asynchronous. A green CI run does not mean the automated review has finished. Do not merge while that review is still pending on the final pull-request head.
 
 Automated checks intentionally cover only deterministic cases. `scripts/check-terminology.mjs` rejects known terminology drift. `scripts/audit-zh-vocabulary.mjs` exposes Chinese vocabulary for review. Neither script attempts to score whether prose “sounds AI-generated”; that judgment is too context-dependent to make a reliable CI gate.
