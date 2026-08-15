@@ -8,13 +8,19 @@ The plugin does not change sandbox configuration. It only handles approval reque
 
 ## Install
 
-Install Node.js and make sure pnpm is on PATH, then add the plugin to the web profile:
+Install Node.js and make sure pnpm is on PATH, then add the published package to the web profile:
+
+```bash
+npx @deepseek-ai/dsh plugin --profile web add @gbthui/dsh-auto-review
+```
+
+`dsh plugin` installs the package through pnpm and adds it to the profile's bundle configuration. The plugin is enabled by default and uses the current session model as its reviewer, so no settings change is required.
+
+To install the current unreleased `main` branch instead, use the git spec:
 
 ```bash
 npx @deepseek-ai/dsh plugin --profile web add https://github.com/gbthui/dsh-auto-review.git
 ```
-
-`dsh plugin` installs the package through pnpm and adds it to the profile's bundle configuration. The plugin is enabled by default and uses the current session model as its reviewer, so no settings change is required.
 
 A newly installed bundle is loaded the next time the profile starts. If the web profile is already running, stop that process and start it again using the same launch method. The npm launch command documented by DeepSeek Harness is:
 

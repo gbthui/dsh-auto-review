@@ -8,13 +8,19 @@ dsh-auto-review 是一个 DeepSeek Harness 插件，用 reviewer 模型回答审
 
 ## 安装
 
-安装 Node.js，并确保 pnpm 在 PATH 中，然后把插件加入 web profile：
+安装 Node.js，并确保 pnpm 在 PATH 中，然后把已发布的包加入 web profile：
+
+```bash
+npx @deepseek-ai/dsh plugin --profile web add @gbthui/dsh-auto-review
+```
+
+`dsh plugin` 会通过 pnpm 安装插件，并把它加入 profile 的 bundle 配置。安装后插件默认启用，reviewer 跟随当前会话模型，不需要修改 settings。
+
+如果要安装尚未发布的 `main` 分支，可以改用 git spec：
 
 ```bash
 npx @deepseek-ai/dsh plugin --profile web add https://github.com/gbthui/dsh-auto-review.git
 ```
-
-`dsh plugin` 会通过 pnpm 安装插件，并把它加入 profile 的 bundle 配置。安装后插件默认启用，reviewer 跟随当前会话模型，不需要修改 settings。
 
 新安装的 bundle 会在 profile 下次启动时加载。如果 web profile 正在运行，先停止当前进程，再按原来的方式重新启动。DeepSeek Harness 官方 README 的 npm 启动方式是：
 

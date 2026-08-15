@@ -3,4 +3,4 @@
 # (~/.dsh/settings.yaml); the row itself carries no config.
 - insert:
     - id: auto-review
-      name: 'dsh-auto-review'
+      name: '@gbthui/dsh-auto-review'
