@@ -79,7 +79,7 @@ reviewer 会收到待审批请求、你的用户消息、agent 最近的操作�
 
 `npm test` 通过 `test/run-tests.ts` 运行测试，包括 `test/units.test.ts`、`test/behavior/` 下按功能拆分的行为测试、`test/pipeline.test.ts` 和 `test/policy-cases.test.ts`。需要真实 reviewer 的用例由环境变量控制；没有配置 reviewer 端点时会跳过。
 
-`test/behavior/required-behaviors.ts` 列出 CI 必须执行并通过的行为检查。CI 会分别检查这些行为和 coverage 阈值，避免只看总覆盖率而漏掉文档规定的主要行为或 fallback。
+`test/behavior/required-behaviors.ts` 列出 CI 必须执行并通过的行为检查。CI 会分别检查这些行为和覆盖率阈值，避免只看总覆盖率而漏掉文档规定的主要行为或回退路径。
 
 `npm run test:coverage` 用 c8/V8 对同一套测试采集 coverage。CI 对 `src/**/*.ts` 要求至少 95% statements、85% branches、100% functions 和 95% lines；没有被测试加载的源码文件也计入覆盖率。文本、JSON summary 和 LCOV 报告写入 `coverage/`。
 
