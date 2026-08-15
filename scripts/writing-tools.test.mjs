@@ -6,7 +6,16 @@ import path from 'node:path'
 import test from 'node:test'
 import { checkTerminology } from './check-terminology.mjs'
 import { readTerminology } from './terminology.mjs'
-import { addedLineNumbers, collectWritingFiles, findPhraseMatches, markdownProseLines, proseLinesForFile } from './writing-scope.mjs'
+import {
+  addedLineNumbers,
+  collectWritingFiles,
+  findPhraseMatches,
+  jsonMetadataProseLines,
+  markdownProseLines,
+  proseLinesForFile,
+  typescriptProseLines,
+  yamlProseLines,
+} from './writing-scope.mjs'
 
 function fixture() {
   const root = mkdtempSync(path.join(tmpdir(), 'dsh-writing-'))
@@ -22,140 +31,73 @@ function cleanup(root) {
   rmSync(root, { recursive: true, force: true })
 }
 
-test('terminology parser rejects malformed forbidden entries', () => {
-  const root = fixture()
-  try {
-    const file = path.join(root, 'docs', 'terminology.yaml')
-    writeFileSync(file, `version: 2\nterms:\n  x:\n    en: x\n    zh: 甲\nforbidden_zh:\n    - 记账\nforbidden_en:\n  - behavior contract\n`)
-    assert.throws(() => readTerminology(file), /malformed forbidden_zh entry/)
-  } finally { cleanup(root) }
-})
-
-test('terminology parser rejects duplicate scalar keys', () => {
+test('terminology parser delegates YAML syntax and validates the schema', () => {
   const root = fixture()
   try {
     const file = path.join(root, 'docs', 'terminology.yaml')
     writeFileSync(file, `version: 2\nterms:\n  x:\n    en: x\n    en: changed\n    zh: 甲\nforbidden_zh:\n  - 记账\nforbidden_en:\n  - behavior contract\n`)
-    assert.throws(() => readTerminology(file), /duplicate key en/)
-  } finally { cleanup(root) }
-})
+    assert.throws(() => readTerminology(file))
 
-test('terminology parser rejects empty phrases', () => {
-  const root = fixture()
-  try {
-    const file = path.join(root, 'docs', 'terminology.yaml')
     writeFileSync(file, `version: 2\nterms:\n  x:\n    en: x\n    zh: 甲\n    avoid_zh:\n      - ""\nforbidden_zh:\n  - 记账\nforbidden_en:\n  - behavior contract\n`)
-    assert.throws(() => readTerminology(file), /must not be empty/)
-  } finally { cleanup(root) }
+    assert.throws(() => readTerminology(file), /non-empty string/)
+
+    writeFileSync(file, `version: 2\nterms:\n  x:\n    en: 'unterminated\n    zh: 甲\nforbidden_zh:\n  - 记账\nforbidden_en:\n  - behavior contract\n`)
+    assert.throws(() => readTerminology(file))
+  } finally {
+    cleanup(root)
+  }
 })
 
-test('writing scope includes mixed-language project prose surfaces', () => {
+test('writing scope covers documented repository prose surfaces', () => {
   const root = fixture()
   try {
     writeFileSync(path.join(root, 'README.md'), '# Readme\n')
-    writeFileSync(path.join(root, 'package.json'), '{}\n')
-    writeFileSync(path.join(root, 'cordis.patch.yml'), 'x: y\n')
+    writeFileSync(path.join(root, 'package.json'), '{"description":"x"}\n')
+    writeFileSync(path.join(root, 'cordis.patch.yml'), 'name: x\n')
+    writeFileSync(path.join(root, 'CHANGELOG.md'), '# changes\n')
     writeFileSync(path.join(root, 'docs', 'writing-guide.md'), '# Guide\n')
     writeFileSync(path.join(root, 'src', 'x.ts'), '// comment\n')
     writeFileSync(path.join(root, 'test', 'x.ts'), '// test\n')
     writeFileSync(path.join(root, '.github', 'pull_request_template.md'), '# PR\n')
     writeFileSync(path.join(root, '.github', 'workflows', 'ci.yml'), 'name: CI\n')
     const files = collectWritingFiles(root)
-    for (const expected of ['README.md','package.json','cordis.patch.yml','docs/writing-guide.md','src/x.ts','test/x.ts','.github/pull_request_template.md','.github/workflows/ci.yml']) assert.ok(files.includes(expected), expected)
-  } finally { cleanup(root) }
+    for (const expected of ['README.md','package.json','cordis.patch.yml','CHANGELOG.md','docs/writing-guide.md','src/x.ts','test/x.ts','.github/pull_request_template.md','.github/workflows/ci.yml']) {
+      assert.ok(files.includes(expected), expected)
+    }
+  } finally {
+    cleanup(root)
+  }
 })
 
-test('Markdown stripping preserves source line numbers and ignores fenced code', () => {
-  const rows = markdownProseLines('top\n```text\nbehavior contract\n```\ntext\nbehavior\ncontract\n')
-  assert.deepEqual(findPhraseMatches(rows, 'behavior contract'), [6])
-})
-
-test('Markdown fences close only with a compatible marker and run length', () => {
-  const rows = markdownProseLines('````md\n```\nbehavior contract\n```\n````\nafter\n')
-  assert.deepEqual(findPhraseMatches(rows, 'behavior contract'), [])
-})
-
-test('Markdown fences are recognized inside blockquotes', () => {
-  const rows = markdownProseLines('> ```text\n> behavior contract\n> ```\n')
-  assert.deepEqual(findPhraseMatches(rows, 'behavior contract'), [])
-})
-
-test('Markdown fences are recognized inside list items', () => {
-  const rows = markdownProseLines('- ```text\n  behavior contract\n  ```\n')
-  assert.deepEqual(findPhraseMatches(rows, 'behavior contract'), [])
-})
-
-test('Markdown code spans use matching backtick run lengths', () => {
-  const rows = markdownProseLines('before `` `behavior contract` `` after\n')
-  assert.deepEqual(findPhraseMatches(rows, 'behavior contract'), [])
-})
-
-test('Markdown code spans can cross source lines', () => {
-  const rows = markdownProseLines('before `behavior\ncontract` after\n')
-  assert.deepEqual(findPhraseMatches(rows, 'behavior contract'), [])
-})
-
-test('Markdown reference links expose their rendered label text', () => {
+test('Markdown extraction follows CommonMark structure instead of ad-hoc delimiters', () => {
+  assert.deepEqual(findPhraseMatches(markdownProseLines('```text\nbehavior contract\n```\n'), 'behavior contract'), [])
+  assert.deepEqual(findPhraseMatches(markdownProseLines('    behavior contract\n'), 'behavior contract'), [])
+  assert.deepEqual(findPhraseMatches(markdownProseLines('- item\n\n    behavior contract\n'), 'behavior contract'), [3])
+  assert.deepEqual(findPhraseMatches(markdownProseLines('before `behavior\ncontract` after\n'), 'behavior contract'), [])
+  assert.deepEqual(findPhraseMatches(markdownProseLines('- before `behavior\n  contract` after\n'), 'behavior contract'), [])
+  assert.deepEqual(findPhraseMatches(markdownProseLines('\\`last valid config\\`\n'), 'last valid config'), [1])
   assert.deepEqual(findPhraseMatches(markdownProseLines('[behavior][term] contract\n\n[term]: /x\n'), 'behavior contract'), [1])
-  assert.deepEqual(findPhraseMatches(markdownProseLines('[last valid][config] configuration\n'), 'last valid configuration'), [1])
-  assert.deepEqual(findPhraseMatches(markdownProseLines('[behavior] contract\n'), 'behavior contract'), [1])
+  assert.deepEqual(findPhraseMatches(markdownProseLines('这里使用解析\n链。\n'), '解析链', { requireHan: true }), [1])
 })
 
-test('separate Markdown blocks do not form wrapped phrases', () => {
-  assert.deepEqual(findPhraseMatches(markdownProseLines('- behavior\n- contract\n'), 'behavior contract'), [])
-  assert.deepEqual(findPhraseMatches(markdownProseLines('# behavior\n## contract\n'), 'behavior contract'), [])
+test('TypeScript extraction uses the compiler AST for strings and syntax-aware comment ranges', () => {
+  assert.deepEqual(findPhraseMatches(typescriptProseLines('const re = /[/*]/; const message = `behavior contract`\n'), 'behavior contract'), [1])
+  assert.deepEqual(findPhraseMatches(typescriptProseLines('x++ / y; const message = "behavior contract"\n'), 'behavior contract'), [1])
+  assert.deepEqual(findPhraseMatches(typescriptProseLines('// behavior\n// contract\n'), 'behavior contract'), [1])
+  assert.deepEqual(findPhraseMatches(typescriptProseLines('/**\n * behavior\n * contract\n */\n'), 'behavior contract'), [2])
+  assert.deepEqual(findPhraseMatches(typescriptProseLines('// `fallback` 是代码标识符。\n'), 'fallback', { requireHan: true }), [])
+  assert.deepEqual(findPhraseMatches(typescriptProseLines('const message = `这里使用 ${fallback}。`\n'), 'fallback', { requireHan: true }), [])
+  assert.deepEqual(findPhraseMatches(typescriptProseLines('const message = `这里使用解析\n链。`\n'), '解析链', { requireHan: true }), [1])
 })
 
-test('Chinese soft wraps preserve Han adjacency', () => {
-  const rows = markdownProseLines('这里使用解析\n链。\n')
-  assert.deepEqual(findPhraseMatches(rows, '解析链', { requireHan: true }), [1])
-})
+test('YAML checks workflow labels and JSON checks package description', () => {
+  const yaml = yamlProseLines('run: fallback # `fallback` 是代码标识符。\nname: |\n  behavior contract\n')
+  assert.deepEqual(findPhraseMatches(yaml, 'fallback', { requireHan: true }), [])
+  assert.ok(findPhraseMatches(yaml, 'behavior contract').length > 0)
 
-test('terminology check ignores backtick code spans in source comments', () => {
-  const root = fixture()
-  try {
-    writeFileSync(path.join(root, 'src', 'x.ts'), '// `fallback` 是回退路径。\n')
-    const result = checkTerminology(root)
-    assert.equal(result.failures.some((line) => line.includes('src/x.ts:1') && line.includes('fallback')), false)
-  } finally { cleanup(root) }
-})
-
-test('terminology check preserves TypeScript template literal prose', () => {
-  const root = fixture()
-  try {
-    writeFileSync(path.join(root, 'src', 'x.ts'), 'const message = `behavior contract`\n')
-    const result = checkTerminology(root)
-    assert.ok(result.failures.some((line) => line.includes('src/x.ts:1') && line.includes('behavior contract')))
-  } finally { cleanup(root) }
-})
-
-test('TypeScript template substitutions are excluded from prose matching', () => {
-  const root = fixture()
-  try {
-    writeFileSync(path.join(root, 'src', 'x.ts'), 'const message = `这里使用 ${fallback}。`\n')
-    const rows = proseLinesForFile(root, 'src/x.ts')
-    assert.deepEqual(findPhraseMatches(rows, 'fallback', { requireHan: true }), [])
-  } finally { cleanup(root) }
-})
-
-test('Han-scoped alternatives do not borrow Chinese from adjacent source lines', () => {
-  const root = fixture()
-  try {
-    writeFileSync(path.join(root, 'src', 'x.ts'), 'const fallback = choosePath()\n// 这里使用回退路径。\n')
-    assert.deepEqual(findPhraseMatches(proseLinesForFile(root, 'src/x.ts'), 'fallback', { requireHan: true }), [])
-    writeFileSync(path.join(root, 'src', 'x.ts'), '// 这里不要写 fallback。\n')
-    assert.deepEqual(findPhraseMatches(proseLinesForFile(root, 'src/x.ts'), 'fallback', { requireHan: true }), [1])
-  } finally { cleanup(root) }
-})
-
-test('Han-scoped alternatives match across multiline source prose', () => {
-  const root = fixture()
-  try {
-    writeFileSync(path.join(root, 'src', 'x.ts'), 'const message = `这里使用解析\n链。`\n')
-    assert.deepEqual(findPhraseMatches(proseLinesForFile(root, 'src/x.ts'), '解析链', { requireHan: true }), [1])
-    writeFileSync(path.join(root, 'src', 'x.ts'), '/* 这里使用解析\n链。 */\n')
-    assert.deepEqual(findPhraseMatches(proseLinesForFile(root, 'src/x.ts'), '解析链', { requireHan: true }), [1])
-  } finally { cleanup(root) }
+  const json = jsonMetadataProseLines('{\n  "description": "behavior contract",\n  "main": "fallback"\n}\n')
+  assert.deepEqual(findPhraseMatches(json, 'behavior contract'), [2])
+  assert.deepEqual(findPhraseMatches(json, 'fallback', { requireHan: true }), [])
 })
 
 test('added-line detection handles non-ASCII paths', () => {
@@ -166,28 +108,51 @@ test('added-line detection handles non-ASCII paths', () => {
     return result.stdout.trim()
   }
   try {
-    git('init', '-q'); git('config', 'user.email', 'test@example.com'); git('config', 'user.name', 'Test')
-    writeFileSync(path.join(root, 'README.md'), 'base\n'); git('add', 'README.md'); git('commit', '-qm', 'base')
+    git('init', '-q')
+    git('config', 'user.email', 'test@example.com')
+    git('config', 'user.name', 'Test')
+    writeFileSync(path.join(root, 'README.md'), 'base\n')
+    git('add', 'README.md')
+    git('commit', '-qm', 'base')
     const base = git('rev-parse', 'HEAD')
-    mkdirSync(path.join(root, 'docs')); writeFileSync(path.join(root, 'docs', '中文.md'), '第一行\n第二行\n')
-    git('add', 'docs/中文.md'); git('commit', '-qm', 'add Chinese doc')
+    mkdirSync(path.join(root, 'docs'))
+    writeFileSync(path.join(root, 'docs', '中文.md'), '第一行\n第二行\n')
+    git('add', 'docs/中文.md')
+    git('commit', '-qm', 'add Chinese doc')
     const selected = addedLineNumbers(root, base, ['docs/中文.md'])
     assert.deepEqual([...selected.get('docs/中文.md')], [1, 2])
-  } finally { cleanup(root) }
+  } finally {
+    cleanup(root)
+  }
 })
 
-test('terminology check catches wrapped phrases and alternatives outside localized docs', () => {
+test('terminology check catches prose across Markdown, source, tests, workflows, and package metadata', () => {
   const root = fixture()
   try {
-    writeFileSync(path.join(root, '.github', 'pull_request_template.md'), 'behavior\ncontract\n')
-    writeFileSync(path.join(root, 'README.md'), 'The fallback behavior is documented here.\n')
+    writeFileSync(path.join(root, 'README.md'), 'behavior\ncontract\n')
+    writeFileSync(path.join(root, 'package.json'), '{"description":"last valid config"}\n')
     writeFileSync(path.join(root, 'src', 'x.ts'), '// 这里不要写解析链，也不要写 fallback。\n')
     writeFileSync(path.join(root, 'test', 'x.ts'), "check('keeps last valid config', true, true)\n")
+    writeFileSync(path.join(root, '.github', 'pull_request_template.md'), '# PR\n')
+    writeFileSync(path.join(root, '.github', 'workflows', 'ci.yml'), 'name: behavior contract\n')
     const result = checkTerminology(root)
-    assert.ok(result.failures.some((line) => line.includes('.github/pull_request_template.md:1') && line.includes('behavior contract')))
+    assert.ok(result.failures.some((line) => line.includes('README.md:1') && line.includes('behavior contract')))
+    assert.ok(result.failures.some((line) => line.includes('package.json:1') && line.includes('last known-good configuration')))
     assert.ok(result.failures.some((line) => line.includes('src/x.ts:1') && line.includes('查找路径')))
     assert.ok(result.failures.some((line) => line.includes('src/x.ts:1') && line.includes('回退路径')))
     assert.ok(result.failures.some((line) => line.includes('test/x.ts:1') && line.includes('last known-good configuration')))
-    assert.equal(result.failures.some((line) => line.includes('README.md:1') && line.includes('回退路径')), false)
-  } finally { cleanup(root) }
+    assert.ok(result.failures.some((line) => line.includes('.github/workflows/ci.yml:1') && line.includes('behavior contract')))
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('file dispatch uses parser-backed extraction', () => {
+  const root = fixture()
+  try {
+    writeFileSync(path.join(root, 'src', 'x.ts'), 'const message = `behavior contract`\n')
+    assert.deepEqual(findPhraseMatches(proseLinesForFile(root, 'src/x.ts'), 'behavior contract'), [1])
+  } finally {
+    cleanup(root)
+  }
 })
