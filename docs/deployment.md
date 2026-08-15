@@ -8,13 +8,13 @@ The plugin was developed and verified with the web profile of DeepSeek Harness 0
 
 ## Quick install
 
-Add the plugin to the web profile:
+Add the published package to the web profile:
 
 ```bash
-npx @deepseek-ai/dsh plugin --profile web add https://github.com/gbthui/dsh-auto-review.git
+npx @deepseek-ai/dsh plugin --profile web add @gbthui/dsh-auto-review
 ```
 
-`dsh plugin` passes the install spec to pnpm, so git, file, and registry specs are accepted. The package is installed into the profile's `node_modules`. Because dsh-auto-review declares `dsh.bundle`, the CLI also adds it to `dsh.profile.bundles`.
+`dsh plugin` passes the install spec to pnpm, so registry, git, and file specs are accepted. The package is installed into the profile's `node_modules`. Because `@gbthui/dsh-auto-review` declares `dsh.bundle`, the CLI also adds it to `dsh.profile.bundles`.
 
 The install command only updates the profile's dependencies and bundle configuration. It does not control an already running Harness process. A newly installed bundle is loaded the next time the profile starts. If the web profile is already running, stop that process and start it again using the same launch method. The npm launch command documented by DeepSeek Harness is:
 
@@ -30,7 +30,7 @@ Configuration is optional. The reviewer follows the session's current model by d
 
 ### 1. Check the bundle declaration
 
-The repository's `package.json` already contains:
+The package's `package.json` contains:
 
 ```json
 "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
@@ -41,7 +41,7 @@ The repository's `package.json` already contains:
 ```yaml
 - insert:
     - id: auto-review
-      name: 'dsh-auto-review'
+      name: '@gbthui/dsh-auto-review'
 ```
 
 ### 2. Add it to the profile
@@ -50,8 +50,8 @@ Edit `~/.dsh/profiles/web/package.json`:
 
 ```json
 {
-  "dependencies": { "dsh-auto-review": "file:/path/to/dsh-auto-review" },
-  "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "dsh-auto-review"] } }
+  "dependencies": { "@gbthui/dsh-auto-review": "file:/path/to/dsh-auto-review" },
+  "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@gbthui/dsh-auto-review"] } }
 }
 ```
 
@@ -69,8 +69,8 @@ The package is resolved from two locations during loading. Both locations must w
 
 | Resolution point | Search order | Setup |
 | --- | --- | --- |
-| Bundle directory | harness `node_modules` first, profile directory second | place or symlink the package into the harness `node_modules/@deepseek-ai/` |
-| Plugin row `import()` | starts at the profile directory and follows Node's module resolution path upward | create the same package symlink in `~/.dsh/profiles/node_modules/@deepseek-ai/`. At boot, dsh maintains fallback links only for its own dependencies; third-party packages must be placed separately |
+| Bundle directory | harness `node_modules` first, profile directory second | place or symlink the package at `node_modules/@gbthui/dsh-auto-review` under the harness installation |
+| Plugin row `import()` | starts at the profile directory and follows Node's module resolution path upward | create the same package path at `~/.dsh/profiles/node_modules/@gbthui/dsh-auto-review`. At boot, dsh maintains fallback links only for its own dependencies; third-party packages must be placed separately |
 
 If the second location is missing, startup logs contain:
 
@@ -128,7 +128,7 @@ tail -f ~/.dsh/auto-review-audit.jsonl
 For a CLI installation, run:
 
 ```bash
-npx @deepseek-ai/dsh plugin --profile web remove dsh-auto-review
+npx @deepseek-ai/dsh plugin --profile web remove @gbthui/dsh-auto-review
 ```
 
 Remove the `dsh-auto-review:` settings section if you added one, then restart the running profile. Manual installations also need their manually added bundle entry and symlinks removed.

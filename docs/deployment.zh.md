@@ -8,13 +8,13 @@ dsh-auto-review 通过 DeepSeek Harness 的 bundle 机制接入。`dsh-base`、`
 
 ## 快速安装
 
-把插件加入 web profile：
+把已发布的包加入 web profile：
 
 ```bash
-npx @deepseek-ai/dsh plugin --profile web add https://github.com/gbthui/dsh-auto-review.git
+npx @deepseek-ai/dsh plugin --profile web add @gbthui/dsh-auto-review
 ```
 
-`dsh plugin` 会把安装参数交给 pnpm，因此 git、file 和 registry spec 都可以使用。包会安装到 profile 的 `node_modules`。由于 dsh-auto-review 声明了 `dsh.bundle`，CLI 还会把它合并到 `dsh.profile.bundles`。
+`dsh plugin` 会把安装参数交给 pnpm，因此 registry、git 和 file spec 都可以使用。包会安装到 profile 的 `node_modules`。由于 `@gbthui/dsh-auto-review` 声明了 `dsh.bundle`，CLI 还会把它合并到 `dsh.profile.bundles`。
 
 安装命令只修改 profile 的依赖和 bundle 配置，不控制已经运行的 Harness 进程。新安装的 bundle 会在 profile 下次启动时加载。如果 web profile 已经运行，停止当前进程后按原来的方式重新启动。DeepSeek Harness 官方 README 的 npm 启动方式是：
 
@@ -30,7 +30,7 @@ npx @deepseek-ai/dsh web
 
 ### 1. 确认 bundle 声明
 
-仓库中的 `package.json` 已包含：
+包的 `package.json` 包含：
 
 ```json
 "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
@@ -41,7 +41,7 @@ npx @deepseek-ai/dsh web
 ```yaml
 - insert:
     - id: auto-review
-      name: 'dsh-auto-review'
+      name: '@gbthui/dsh-auto-review'
 ```
 
 ### 2. 加入 profile
@@ -50,8 +50,8 @@ npx @deepseek-ai/dsh web
 
 ```json
 {
-  "dependencies": { "dsh-auto-review": "file:/path/to/dsh-auto-review" },
-  "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "dsh-auto-review"] } }
+  "dependencies": { "@gbthui/dsh-auto-review": "file:/path/to/dsh-auto-review" },
+  "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@gbthui/dsh-auto-review"] } }
 }
 ```
 
@@ -69,8 +69,8 @@ npx @deepseek-ai/dsh plugin --profile web add /path/to/dsh-auto-review
 
 | 解析点 | 查找顺序 | 做法 |
 | --- | --- | --- |
-| bundle 目录 | 先找 harness 的 `node_modules`，再找 profile 目录 | 把包放入或链接到 harness `node_modules/@deepseek-ai/` |
-| 插件行 `import()` | 从 profile 目录沿 Node 的模块解析路径向上查找 | 在 `~/.dsh/profiles/node_modules/@deepseek-ai/` 放同名符号链接。dsh 启动时只维护自身依赖的回退链接，第三方包需要自行放置 |
+| bundle 目录 | 先找 harness 的 `node_modules`，再找 profile 目录 | 在 harness 安装目录下放置或链接 `node_modules/@gbthui/dsh-auto-review` |
+| 插件行 `import()` | 从 profile 目录沿 Node 的模块解析路径向上查找 | 在 `~/.dsh/profiles/node_modules/@gbthui/dsh-auto-review` 放置同一个包。dsh 启动时只维护自身依赖的回退链接，第三方包需要自行放置 |
 
 第二个位置缺失时，启动日志会出现：
 
@@ -128,7 +128,7 @@ tail -f ~/.dsh/auto-review-audit.jsonl
 通过 CLI 安装时，可以运行：
 
 ```bash
-npx @deepseek-ai/dsh plugin --profile web remove dsh-auto-review
+npx @deepseek-ai/dsh plugin --profile web remove @gbthui/dsh-auto-review
 ```
 
 删除 settings 中的 `dsh-auto-review:` 段（如果配置过），然后重新启动正在运行的 profile。手动安装的部署还需要删除手动创建的 bundle 条目和符号链接。

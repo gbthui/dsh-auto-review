@@ -1,7 +1,25 @@
 {
-  "name": "dsh-auto-review",
-  "description": "Auto-review guardian answerer for DeepSeek Harness: routes approval asks to a reviewer model with fail-closed integrity checks, a denial circuit breaker, anti-circumvention feedback injection, and a sha256-hashed audit trail.",
+  "name": "@gbthui/dsh-auto-review",
   "version": "0.1.0",
+  "description": "DeepSeek Harness plugin that uses a reviewer model to answer approval requests before interactive approval.",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "plugin",
+    "agent",
+    "approval",
+    "auto-review"
+  ],
+  "homepage": "https://github.com/gbthui/dsh-auto-review#readme",
+  "bugs": {
+    "url": "https://github.com/gbthui/dsh-auto-review/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gbthui/dsh-auto-review.git"
+  },
+  "license": "Apache-2.0",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -11,7 +29,19 @@
     },
     "./package.json": "./package.json"
   },
-  "license": "Apache-2.0",
+  "files": [
+    "lib",
+    "src",
+    "docs",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4",
     "@deepseek-ai/dsh-llm": "*",
@@ -28,13 +58,6 @@
       "optional": true
     }
   },
-  "files": [
-    "lib",
-    "src",
-    "cordis.patch.yml",
-    "README.md",
-    "README.zh.md"
-  ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
