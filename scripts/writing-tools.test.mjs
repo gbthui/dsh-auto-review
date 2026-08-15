@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { checkTerminology } from './check-terminology.mjs'
 import { readTerminology } from './terminology.mjs'
-import { collectWritingFiles, findPhraseMatches, markdownProseLines } from './writing-scope.mjs'
+import { addedLineNumbers, collectWritingFiles, findPhraseMatches, markdownProseLines, proseLinesForFile } from './writing-scope.mjs'
 
 function fixture() {
   const root = mkdtempSync(path.join(tmpdir(), 'dsh-writing-'))
@@ -80,8 +81,18 @@ test('Markdown fences close only with a compatible marker and run length', () =>
   assert.deepEqual(findPhraseMatches(rows, 'behavior contract'), [])
 })
 
+test('Markdown fences are recognized inside blockquotes', () => {
+  const rows = markdownProseLines('> ```text\n> behavior contract\n> ```\n')
+  assert.deepEqual(findPhraseMatches(rows, 'behavior contract'), [])
+})
+
 test('Markdown code spans use matching backtick run lengths', () => {
   const rows = markdownProseLines('before `` `behavior contract` `` after\n')
+  assert.deepEqual(findPhraseMatches(rows, 'behavior contract'), [])
+})
+
+test('Markdown code spans can cross source lines', () => {
+  const rows = markdownProseLines('before `behavior\ncontract` after\n')
   assert.deepEqual(findPhraseMatches(rows, 'behavior contract'), [])
 })
 
@@ -98,12 +109,67 @@ test('Chinese soft wraps preserve Han adjacency', () => {
   assert.deepEqual(findPhraseMatches(rows, '解析链', { requireHan: true }), [1])
 })
 
-test('terminology check ignores backtick code spans in source prose', () => {
+test('terminology check ignores backtick code spans in source comments', () => {
   const root = fixture()
   try {
     writeFileSync(path.join(root, 'src', 'x.ts'), '// `fallback` 是回退路径。\n')
     const result = checkTerminology(root)
     assert.equal(result.failures.some((line) => line.includes('src/x.ts:1') && line.includes('fallback')), false)
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('terminology check preserves TypeScript template literal prose', () => {
+  const root = fixture()
+  try {
+    writeFileSync(path.join(root, 'src', 'x.ts'), 'const message = `behavior contract`\n')
+    const result = checkTerminology(root)
+    assert.ok(result.failures.some((line) => line.includes('src/x.ts:1') && line.includes('behavior contract')))
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('Han-scoped alternatives do not borrow Chinese from adjacent source lines', () => {
+  const root = fixture()
+  try {
+    writeFileSync(path.join(root, 'src', 'x.ts'), 'const fallback = choosePath()\n// 这里使用回退路径。\n')
+    const rows = proseLinesForFile(root, 'src/x.ts')
+    assert.deepEqual(findPhraseMatches(rows, 'fallback', { requireHan: true }), [])
+
+    writeFileSync(path.join(root, 'src', 'x.ts'), '// 这里不要写 fallback。\n')
+    const commentRows = proseLinesForFile(root, 'src/x.ts')
+    assert.deepEqual(findPhraseMatches(commentRows, 'fallback', { requireHan: true }), [1])
+  } finally {
+    cleanup(root)
+  }
+})
+
+test('added-line detection handles non-ASCII paths', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'dsh-writing-git-'))
+  const git = (...args) => {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    return result.stdout.trim()
+  }
+
+  try {
+    git('init', '-q')
+    git('config', 'user.email', 'test@example.com')
+    git('config', 'user.name', 'Test')
+    writeFileSync(path.join(root, 'README.md'), 'base\n')
+    git('add', 'README.md')
+    git('commit', '-qm', 'base')
+    const base = git('rev-parse', 'HEAD')
+
+    mkdirSync(path.join(root, 'docs'))
+    writeFileSync(path.join(root, 'docs', '中文.md'), '第一行\n第二行\n')
+    git('add', 'docs/中文.md')
+    git('commit', '-qm', 'add Chinese doc')
+
+    const selected = addedLineNumbers(root, base, ['docs/中文.md'])
+    assert.deepEqual([...selected.get('docs/中文.md')], [1, 2])
   } finally {
     cleanup(root)
   }
