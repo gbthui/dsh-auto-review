@@ -2,4 +2,4 @@
 # last confirmed-consistent state. Both languages carry equal authority; after
 # editing either side, bring the other along and re-record the hashes.
 README.md: b9a0e04536119f0584ee065d43ea2a6fb6d83f90
-README.zh.md: b8be251ca47f217465a98ec1f953defb791e1647
+README.zh.md: 4ca6d4c932b3e548a76890e630e01e438ffcf4b9
