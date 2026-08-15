@@ -18,7 +18,7 @@ terms:
     en: rolling window
     zh: 滚动窗口
   last-valid-configuration:
-    en: last valid configuration
+    en: last known-good configuration
     zh: 上一次有效配置
     avoid_zh:
       - 上一份合法配置
