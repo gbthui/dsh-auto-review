@@ -20,7 +20,7 @@ dsh-auto-review:
     apiKeyEnv: ''                    # 方式二：从环境变量读
     apiKeyFile: ''                   # 方式三：KEY=VALUE 文件（~ 可展开，推荐）
     timeoutMs: 24000
-    maxTokens: 1024                  # 判定 JSON 约 100-300 token，这个上限只用于限制异常长输出
+    maxTokens: 1024                  # 判定 JSON 约 100-300 token；用于限制异常长输出
     thinking: default                # default | off；off 的行为取决于 reviewer 调用路径
     extraSystemPrompt: ''            # 追加到 reviewer 策略的额外规则
     factFinding:
@@ -35,7 +35,7 @@ dsh-auto-review:
     tools: []                        # 空 = 处理所有审批请求；填列表 = 只处理这些工具
     allowRules: []                   # 不经 reviewer 的直接放行规则；见下文
     maxInputChars: 16000             # 超过上限的待审批请求直接 rejected，不截断
-    denyOnReviewerError: true        # reviewer error -> unavailable（fail closed）
+    denyOnReviewerError: true        # reviewer 出错 -> unavailable（fail closed）
     context:
       enabled: true                  # 发给 reviewer 的上下文
       maxMessages: 10
@@ -46,7 +46,7 @@ dsh-auto-review:
     enabled: true
     consecutiveDenyLimit: 3
     windowSize: 50
-    windowDenyLimit: 10              # 或滚动 approval outcome 窗口中累计 10 次 deny
+    windowDenyLimit: 10              # 最近 windowSize 次审批结果中的 deny 数阈值
     action: cancel                   # cancel | inject | off
 
   audit:
@@ -67,11 +67,11 @@ dsh-auto-review:
 
 把 `baseURL` 设为 OpenAI 兼容的 `chat/completions` 端点，并配置 `model` 和密钥。无人值守部署建议使用与 agent 不同提供方或模型族的 reviewer。
 
-使用外部端点时，以下信息会发送到该端点：reviewer 策略、待审批请求的工具名和原始参数、用户消息、agent 最近的活动、工具结果摘要、工作区路径和沙箱模式。文件内容默认不会发送。只有开启 `factFinding.content.enabled`，并且 reviewer 请求 `inspect_text_file` 时，指定文件的内容才会进入 reviewer 请求。
+使用外部端点时，以下信息会发送到该端点：reviewer 策略、待审批请求的工具名和原始参数、用户消息、agent 最近的操作记录、工具结果摘要、工作区路径和沙箱模式。文件内容默认不会发送。只有开启 `factFinding.content.enabled`，并且 reviewer 请求 `inspect_text_file` 时，指定文件的内容才会进入 reviewer 请求。
 
 工具参数本身也可能包含路径、URL 或代码等敏感内容。外部端点需要能够接受这些数据。
 
-密钥按 `apiKey` → `apiKeyEnv` → `apiKeyFile` 的顺序查找。`apiKeyEnv` 从进程环境变量读取；`apiKeyFile` 读取第一条非注释的 `NAME=value`。这里不会解析 shell 语法，例如 `export` 或带引号的值，因此值应直接写成未加引号的文本。三种方式都没有得到密钥时，reviewer 调用进入 reviewer-error 处理。
+密钥按 `apiKey` → `apiKeyEnv` → `apiKeyFile` 的顺序查找。`apiKeyEnv` 从进程环境变量读取；`apiKeyFile` 读取第一条非注释的 `NAME=value`。这里不会解析 shell 语法，例如 `export` 或带引号的值，因此值应直接写成未加引号的文本。三种方式都没有得到密钥时，按 `denyOnReviewerError` 处理。
 
 ## thinking
 
@@ -99,7 +99,7 @@ reviewer 只处理能够对应到精确工具调用的审批请求。请求中�
 
 `maxInputChars` 限制待审批请求本身。超过上限时，在调用 reviewer 之前直接 `rejected`，请求不会被截断。最新一条用户消息同样不会被截断，因为消息后部可能包含收窄或撤销授权的条件。上下文预算无法容纳这条消息时，也会在调用 reviewer 之前 `rejected`。
 
-发送给 reviewer 的上下文分为可信和不可信两类。只有用户消息能够授权。assistant 文本、工具调用和工具结果只能作为事件上下文。工具结果可能包含 prompt injection，因此默认只发送长度和 sha256 摘要。设置 `rawToolResults: true` 后会额外发送经过长度限制的原始工具结果文本。较新的用户消息优先于较早的消息；后续撤销或收窄授权会覆盖先前授权。较早且过长的消息只保留 sha256 占位符，这类占位符不能作为授权依据。
+发送给 reviewer 的上下文分为可信和不可信两类。只有用户消息能够授权。assistant 文本、工具调用和工具结果只能作为事件上下文。工具结果可能包含 prompt injection，因此默认只发送长度和 sha256 摘要。设置 `rawToolResults: true` 后会额外发送原始工具结果文本，单条工具结果最多保留 400 个字符。较新的用户消息优先于较早的消息；后续撤销或收窄授权会覆盖先前授权。较早且过长的消息只保留 sha256 占位符，这类占位符不能作为授权依据。
 
 ### 放行规则
 
@@ -118,7 +118,7 @@ dsh-auto-review:
         escalationTarget: ''
 ```
 
-`tool` 必须和实际工具名完全一致。`operations` 会依次检查工具参数中的 `command`、`operation`、`script`，取其中第一个字符串字段，然后做字面字符串前缀匹配。这里不会解析 shell，也没有参数边界。例如 `git status` 会匹配 `git status --short`。因此不要写 `git` 这类过宽的前缀。
+`tool` 必须和实际工具名完全一致。`operations` 会依次检查工具参数中的 `command`、`operation`、`script`，取其中第一个字符串字段，然后做字符串前缀匹配。这里不会解析 shell，也没有参数边界。例如 `git status` 会匹配 `git status --short`。因此不要写 `git` 这类过宽的前缀。
 
 `escalationTarget: ''` 表示这条规则只用于普通审批，也就是工具参数里没有非空 `sandbox_permissions` 的请求。普通审批规则可以把 `operations` 留空，但这会让该 `tool` 的所有普通审批直接通过，包括没有 `command` / `operation` / `script` 字段的调用。除非你确实要对整个工具放行，否则不要这样配。
 
@@ -138,21 +138,21 @@ dsh-auto-review:
 
 如果没有规则命中，请求才继续交给 reviewer。另一个容易忽略的顺序是 `policy.tools`：当 `tools` 非空时，插件会先按这个列表过滤工具；不在列表中的工具不会进入 `allowRules` 或 reviewer。
 
-### reviewer-error 处理
+### reviewer 错误
 
-`denyOnReviewerError: true` 是默认值。发生 reviewer error 时返回 `unavailable`，请求因此 fail closed，同时该结果对 breaker 是中性的。设为 `false` 后，这类审批请求会继续交给下一个 answerer。
+`denyOnReviewerError: true` 是默认值。reviewer 调用或结果处理出错时返回 `unavailable`，请求因此 fail closed；`unavailable` 不计入熔断器的 deny 数。设为 `false` 后，这类审批请求会继续交给下一个 answerer。
 
-reviewer error 包括端点或会话模型调用失败、最终文本为空、第一次解析失败后纠正重试仍无法解析，以及 reviewer 请求了当前不可用的本地查询能力或超过了配置的 fact-finding 限制。这些情况都统一遵循 `denyOnReviewerError`。
+以下情况都按 `denyOnReviewerError` 处理：端点或会话模型调用失败、最终文本为空、第一次解析失败后重试仍无法解析，以及 reviewer 请求了当前不可用的本地查询能力或超过了 fact-finding 限制。
 
 风险等级为 `critical` 的请求不会被 reviewer 放行。即使模型返回 allow，最终结果仍按 deny 处理。
 
 ### 熔断器
 
-breaker 只统计当前回合。每次 deny 都会增加连续拒绝计数，并在滚动窗口中加入一个 deny；`allow` 和 `unavailable` 会把连续拒绝计数清零，并在窗口中加入一个非 deny。因此 reviewer 不可用会中断连续拒绝，但不会被算作 deny。
+熔断器只统计当前回合。每次 deny 都会增加连续 deny 计数，并在滚动窗口中记录一次 deny；`allow` 和 `unavailable` 会清零连续 deny 计数，并在窗口中记录一次非 deny。因此 `unavailable` 会中断连续 deny，但不会被计为 deny。
 
-默认配置下，连续 3 次 deny，或 breaker 最近记录的 50 个 approval outcomes 中累计 10 次 deny，会触发 breaker。这里统计的是 approval outcomes，不是 reviewer 调用次数；`allowRules` 的直接放行和完整性检查产生的拒绝也会进入 breaker 记账。
+默认连续 3 次 deny，或最近 50 次审批结果中出现 10 次 deny 时触发。滚动窗口统计审批结果，不是 reviewer 调用次数。`allowRules` 的直接放行和 reviewer 调用前直接产生的 `rejected` 也会更新熔断器状态。
 
-`action: cancel` 会注入 breaker 提示并取消当前回合；`action: inject` 只注入提示，不取消；`action: off` 两者都不执行。
+`action: cancel` 会注入熔断提示并取消当前回合；`action: inject` 只注入提示，不取消；`action: off` 两者都不执行。
 
 ### 本地查询
 
@@ -162,13 +162,13 @@ reviewer 可以返回 `need_fact`，先请求本地信息，再给出判定。�
 
 `inspect_text_file` 是本地查询中唯一可能把工作区文件内容发送给 reviewer 的工具，默认关闭。开启后仍受工作区范围限制，并拒绝二进制文件、超过 `maxBytes` 的文件和已知敏感路径，包括 `.env`、`.ssh/`、`.aws/`、`.kube/`、`.npmrc`、`.pypirc`、`.docker/`、`credentials.*`、`secrets.*` 和密钥文件。敏感文件名无法仅靠静态清单覆盖，因此文件内容查询默认关闭。
 
-如果 fact finding 已关闭、reviewer 在内容读取未开启时请求 `inspect_text_file`，或者查询超过 `maxRounds` / `maxFacts`，请求会进入上面的 reviewer-error 处理。
+fact finding 已关闭、内容读取未开启时请求 `inspect_text_file`，或者查询超过 `maxRounds` / `maxFacts`，都按 `denyOnReviewerError` 处理。
 
 ## 配置加载
 
-合法的 settings 修改会实时生效。非法的 live settings 更新会被拒绝，继续使用上一份已通过校验的配置。
+通过校验的 settings 修改会立即生效。无效更新会被拒绝，并继续使用上一次有效配置。
 
-如果 settings service 注册失败，会使用插件行提供且通过校验的配置。如果在拿到任何合法 settings 配置之前发生读取失败，本次审批不会启用 auto-review，而是继续交给下一个 answerer；已经成功读取过合法配置后，短暂的读取失败会继续使用上一份合法配置。
+settings service 注册失败时，插件使用加载时传入且通过校验的配置。如果在成功读取任何有效 settings 配置之前发生读取失败，本次审批请求会交给下一个 answerer；成功读取过有效配置后，后续读取失败会继续使用上一次有效配置。
 
 更新插件代码仍然需要重新启动正在运行的 profile。
 
@@ -176,13 +176,13 @@ reviewer 可以返回 `need_fact`，先请求本地信息，再给出判定。�
 
 开启审计后，记录会追加到 `audit.path`。默认不写原始工具输入，只写 `inputSha256`；`includeToolInput: true` 才会同时保存原始工具输入。
 
-审计文件写入失败会记录日志，并在 auditor 内部消化，不会替换或抛出审批结果。
+审计写入失败只记录 warning，不会改变审批结果，也不会向外抛出该错误。
 
 ## 命令
 
 ### /auto-review
 
-不带参数时切换开关状态。`on` 和 `off` 设置状态，`status` 显示当前生效配置，包括外部 reviewer 会收到的信息。settings 更新失败时，命令会返回错误，不会把失败的更新报告成成功。
+不带参数时切换开关状态。`on` 和 `off` 设置状态，`status` 显示当前生效配置，包括外部 reviewer 会收到的信息。settings 更新失败时，命令会返回错误。
 
 ### /approve
 
