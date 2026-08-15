@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
-import * as ts from 'typescript'
+import * as ts from '@typescript/typescript6'
 import { LineCounter, isMap, isScalar, isSeq, parseDocument } from 'yaml'
 
 const markdownParser = unified().use(remarkParse)
