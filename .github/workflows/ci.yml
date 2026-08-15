@@ -122,7 +122,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Behavior contract and source coverage
+      - name: Required behaviors and source coverage
         run: npm run test:coverage
 
       - name: Rebuild committed package output
