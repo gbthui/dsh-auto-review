@@ -3,10 +3,13 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
+import rehypeParse from 'rehype-parse'
 import * as ts from '@typescript/typescript6'
 import { LineCounter, isMap, isScalar, isSeq, parseDocument } from 'yaml'
 
 const markdownParser = unified().use(remarkParse)
+const htmlParser = unified().use(rehypeParse, { fragment: true })
+const HTML_NON_PROSE = new Set(['code', 'pre', 'script', 'style', 'template'])
 
 function walk(root, relativeDir, extensions) {
   const start = path.join(root, relativeDir)
@@ -44,6 +47,34 @@ function rowsFromLineMap(lines, scope) {
   }))
 }
 
+function collectHtmlText(node, lines, baseLine, hidden = false) {
+  const nextHidden = hidden || (node.type === 'element' && HTML_NON_PROSE.has(node.tagName))
+  if (nextHidden) return
+  if (node.type === 'text') {
+    const relativeLine = node.position?.start?.line ?? 1
+    appendValue(lines, baseLine + relativeLine - 1, node.value)
+    return
+  }
+  if (node.type === 'element' && node.tagName === 'img' && typeof node.properties?.alt === 'string') {
+    const relativeLine = node.position?.start?.line ?? 1
+    appendValue(lines, baseLine + relativeLine - 1, node.properties.alt)
+  }
+  if (node.type === 'element' && node.tagName === 'br') {
+    const relativeLine = node.position?.start?.line ?? 1
+    appendValue(lines, baseLine + relativeLine - 1, '\n')
+  }
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) collectHtmlText(child, lines, baseLine, nextHidden)
+  }
+}
+
+function htmlBlockRows(value, startLine, scope) {
+  const tree = htmlParser.parse(value)
+  const lines = new Map()
+  collectHtmlText(tree, lines, startLine)
+  return rowsFromLineMap(lines, scope)
+}
+
 function collectMarkdownInline(node, lines) {
   const line = node.position?.start?.line ?? 1
   if (node.type === 'text') {
@@ -79,6 +110,12 @@ export function markdownProseLines(text) {
       if (lines.size) rows.push(...rowsFromLineMap(lines, ++scope))
       return
     }
+    if (node.type === 'html') {
+      const startLine = node.position?.start?.line ?? 1
+      const htmlRows = htmlBlockRows(node.value, startLine, ++scope)
+      if (htmlRows.length) rows.push(...htmlRows)
+      return
+    }
     if (Array.isArray(node.children)) {
       for (const child of node.children) visit(child)
     }
@@ -98,26 +135,55 @@ function plainScopeRows(value, startLine, scope) {
   return rowsFromLineMap(lines, scope)
 }
 
-function collectCommentRanges(sourceFile, text) {
-  const ranges = new Map()
-  const add = (range) => {
-    if (!range) return
-    ranges.set(`${range.pos}:${range.end}`, range)
-  }
+function decodeRawStringLine(value) {
+  return value
+    .replace(/\\u\{([0-9a-fA-F]+)\}/g, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/\\x([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/\\[nrtvfb]/g, ' ')
+    .replace(/\\(["'`\\])/g, '$1')
+}
 
-  const visit = (node) => {
-    for (const range of ts.getLeadingCommentRanges(text, node.getFullStart()) ?? []) add(range)
-    for (const range of ts.getTrailingCommentRanges(text, node.getEnd()) ?? []) add(range)
-    ts.forEachChild(node, visit)
+function rawScopeRows(value, startLine, scope) {
+  const lines = new Map()
+  const parts = String(value).split(/\r?\n/)
+  for (let offset = 0; offset < parts.length; offset += 1) {
+    lines.set(startLine + offset, decodeRawStringLine(parts[offset]))
   }
-  visit(sourceFile)
-  for (const range of ts.getLeadingCommentRanges(text, 0) ?? []) add(range)
-  for (const range of ts.getTrailingCommentRanges(text, text.length) ?? []) add(range)
-  return [...ranges.values()].sort((a, b) => a.pos - b.pos)
+  return rowsFromLineMap(lines, scope)
+}
+
+function literalSourceRows(node, sourceFile, text, scope) {
+  const start = node.getStart(sourceFile)
+  const raw = text.slice(start, node.getEnd())
+  return rawScopeRows(raw.length >= 2 ? raw.slice(1, -1) : '', sourceLine(sourceFile, start), scope)
+}
+
+function templatePartRows(node, sourceFile, text, scope, head = false) {
+  const start = node.getStart(sourceFile)
+  const raw = text.slice(start, node.getEnd())
+  let body = raw
+  if (head) body = raw.length >= 3 ? raw.slice(1, -2) : ''
+  else if (raw.endsWith('`')) body = raw.length >= 2 ? raw.slice(1, -1) : ''
+  else body = raw.length >= 3 ? raw.slice(1, -2) : ''
+  return rawScopeRows(body, sourceLine(sourceFile, start), scope)
+}
+
+function collectCommentRanges(text) {
+  const ranges = []
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, text)
+  while (true) {
+    const kind = scanner.scan()
+    if (kind === ts.SyntaxKind.SingleLineCommentTrivia || kind === ts.SyntaxKind.MultiLineCommentTrivia) {
+      ranges.push({ kind, pos: scanner.getTokenPos(), end: scanner.getTextPos() })
+    }
+    if (kind === ts.SyntaxKind.EndOfFileToken) break
+  }
+  return ranges
 }
 
 function commentMarkdownGroups(sourceFile, text) {
-  const ranges = collectCommentRanges(sourceFile, text)
+  const ranges = collectCommentRanges(text)
   const groups = []
 
   for (const range of ranges) {
@@ -159,21 +225,16 @@ export function typescriptProseLines(text, fileName = 'source.ts') {
   const rows = []
   let scope = 0
 
-  const addString = (value, position) => {
-    if (!value) return
-    rows.push(...plainScopeRows(value, sourceLine(sourceFile, position), ++scope))
-  }
-
   const visit = (node) => {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
-      addString(node.text, node.getStart(sourceFile))
+      rows.push(...literalSourceRows(node, sourceFile, text, ++scope))
       return
     }
     if (ts.isTemplateExpression(node)) {
-      addString(node.head.text, node.head.getStart(sourceFile))
+      rows.push(...templatePartRows(node.head, sourceFile, text, ++scope, true))
       for (const span of node.templateSpans) {
         ts.forEachChild(span.expression, visit)
-        addString(span.literal.text, span.literal.getStart(sourceFile))
+        rows.push(...templatePartRows(span.literal, sourceFile, text, ++scope))
       }
       return
     }
@@ -193,9 +254,32 @@ export function typescriptProseLines(text, fileName = 'source.ts') {
   return rows.sort((a, b) => a.line - b.line || a.scope - b.scope)
 }
 
+function yamlScalarRows(value, lineCounter, scope, fallbackPosition = 0) {
+  const token = value?.srcToken
+  if (token?.type === 'block-scalar') {
+    const headerLength = token.props.reduce((sum, part) => sum + (typeof part.source === 'string' ? part.source.length : 0), 0)
+    const contentOffset = token.offset + headerLength
+    const startLine = lineCounter.linePos(contentOffset).line
+    const lines = new Map()
+    const parts = String(token.source ?? '').split(/\r?\n/)
+    for (let offset = 0; offset < parts.length; offset += 1) {
+      lines.set(startLine + offset, parts[offset].replace(/^[\t ]+/, ''))
+    }
+    return rowsFromLineMap(lines, scope)
+  }
+  const position = value?.range?.[0] ?? fallbackPosition
+  const startLine = lineCounter.linePos(position).line
+  return plainScopeRows(value?.value ?? '', startLine, scope)
+}
+
 export function yamlProseLines(text) {
   const lineCounter = new LineCounter()
-  const document = parseDocument(text, { lineCounter, uniqueKeys: true, prettyErrors: true })
+  const document = parseDocument(text, {
+    keepSourceTokens: true,
+    lineCounter,
+    uniqueKeys: true,
+    prettyErrors: true,
+  })
   if (document.errors.length) throw document.errors[0]
 
   const rows = []
@@ -224,10 +308,8 @@ export function yamlProseLines(text) {
       for (const pair of node.items) {
         visit(pair, startLine)
         const key = isScalar(pair.key) ? pair.key.value : undefined
-        if (key === 'name' && isScalar(pair.value) && typeof pair.value.value === 'string') {
-          const valuePosition = pair.value.range?.[0] ?? position ?? 0
-          const valueLine = lineCounter.linePos(valuePosition).line
-          rows.push(...plainScopeRows(pair.value.value, valueLine, ++scope))
+        if ((key === 'name' || key === 'run-name') && isScalar(pair.value) && typeof pair.value.value === 'string') {
+          rows.push(...yamlScalarRows(pair.value, lineCounter, ++scope, position ?? 0))
         }
         if (pair.key) visit(pair.key, startLine)
         if (pair.value) visit(pair.value, startLine)
