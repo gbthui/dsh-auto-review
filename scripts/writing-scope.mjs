@@ -55,12 +55,16 @@ export function stripCodeSpans(text) {
     }
 
     output += text.slice(cursor, open)
-    output += ' '
+    output += text.slice(open, close + runLength).replace(/[^\r\n]/g, ' ')
     cursor = close + runLength
     searchFrom = cursor
   }
 
   return cursor === 0 ? text : output + text.slice(cursor)
+}
+
+function withoutBlockquotePrefix(line) {
+  return line.replace(/^(?: {0,3}>[\t ]?)+/, '')
 }
 
 export function collectWritingFiles(root) {
@@ -75,39 +79,51 @@ export function collectWritingFiles(root) {
   return [...files].sort()
 }
 
-export function markdownProseLines(text) {
-  const lines = text.split(/\r?\n/)
+function markdownWithoutFences(lines) {
   let fence = null
 
-  return lines.map((line, index) => {
+  return lines.map((line) => {
+    const candidate = withoutBlockquotePrefix(line)
+
     if (fence !== null) {
-      const closingFence = line.match(/^\s{0,3}(`{3,}|~{3,})[\t ]*$/)
+      const closingFence = candidate.match(/^\s{0,3}(`{3,}|~{3,})[\t ]*$/)
       if (
         closingFence
         && closingFence[1][0] === fence.marker
         && closingFence[1].length >= fence.length
       ) fence = null
-      return { line: index + 1, text: '' }
+      return ''
     }
 
-    const openingFence = line.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/)
+    const openingFence = candidate.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/)
     if (openingFence) {
       const marker = openingFence[1][0]
       const info = openingFence[2]
       if (marker === '~' || !info.includes('`')) {
         fence = { marker, length: openingFence[1].length }
-        return { line: index + 1, text: '' }
+        return ''
       }
     }
 
-    const heading = /^\s{0,3}#{1,6}(?:[\t ]+|$)/.test(line)
-    const listItem = /^\s{0,3}(?:[-*+][\t ]+|\d+[.)][\t ]+)/.test(line)
-    const prose = stripCodeSpans(line)
+    return line
+  })
+}
+
+export function markdownProseLines(text) {
+  const sourceLines = text.split(/\r?\n/)
+  const withoutFences = markdownWithoutFences(sourceLines)
+  const withoutCodeSpans = stripCodeSpans(withoutFences.join('\n')).split('\n')
+
+  return withoutCodeSpans.map((line, index) => {
+    const content = withoutBlockquotePrefix(line)
+    const heading = /^\s{0,3}#{1,6}(?:[\t ]+|$)/.test(content)
+    const listItem = /^\s{0,3}(?:[-*+][\t ]+|\d+[.)][\t ]+)/.test(content)
+    const prose = content
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
       .replace(/https?:\/\/\S+/g, ' ')
       .replace(/<[^>]+>/g, ' ')
-      .replace(/^\s{0,3}(?:#{1,6}\s*|>\s*|[-*+]\s+|\d+[.)]\s+)/, '')
+      .replace(/^\s{0,3}(?:#{1,6}\s*|[-*+]\s+|\d+[.)]\s+)/, '')
       .replace(/[\*_~]/g, '')
 
     return {
@@ -119,10 +135,97 @@ export function markdownProseLines(text) {
   })
 }
 
+export function typescriptProseLines(text) {
+  const lines = text.split(/\r?\n/)
+  let mode = 'code'
+  let escaped = false
+
+  return lines.map((line, index) => {
+    let visible = ''
+    const prose = []
+    let i = 0
+
+    const appendComment = (segment) => {
+      const stripped = stripCodeSpans(segment)
+      visible += stripped
+      prose.push(stripped)
+    }
+
+    while (i < line.length) {
+      if (mode === 'block-comment') {
+        const end = line.indexOf('*/', i)
+        if (end < 0) {
+          appendComment(line.slice(i))
+          i = line.length
+          continue
+        }
+        appendComment(line.slice(i, end + 2))
+        i = end + 2
+        mode = 'code'
+        continue
+      }
+
+      if (mode === 'code') {
+        if (line.startsWith('//', i)) {
+          appendComment(line.slice(i))
+          i = line.length
+          continue
+        }
+        if (line.startsWith('/*', i)) {
+          mode = 'block-comment'
+          continue
+        }
+        const char = line[i]
+        if (char === "'") mode = 'single'
+        else if (char === '"') mode = 'double'
+        else if (char === '`') mode = 'template'
+        visible += char
+        i += 1
+        continue
+      }
+
+      const delimiter = mode === 'single' ? "'" : mode === 'double' ? '"' : '`'
+      const char = line[i]
+      visible += char
+
+      if (escaped) {
+        prose.push(char)
+        escaped = false
+        i += 1
+        continue
+      }
+      if (char === '\\') {
+        prose.push(char)
+        escaped = true
+        i += 1
+        continue
+      }
+      if (char === delimiter) {
+        mode = 'code'
+        i += 1
+        continue
+      }
+
+      prose.push(char)
+      i += 1
+    }
+
+    if (mode === 'single' || mode === 'double') {
+      mode = 'code'
+      escaped = false
+    } else if (mode !== 'template') {
+      escaped = false
+    }
+
+    return { line: index + 1, text: visible, proseText: prose.join('') }
+  })
+}
+
 export function proseLinesForFile(root, file) {
   const text = readFileSync(path.join(root, file), 'utf8')
   if (file.endsWith('.md')) return markdownProseLines(text)
-  return text.split(/\r?\n/).map((line, index) => ({ line: index + 1, text: stripCodeSpans(line) }))
+  if (file.endsWith('.ts')) return typescriptProseLines(text)
+  return text.split(/\r?\n/).map((line, index) => ({ line: index + 1, text: line }))
 }
 
 export function findPhraseMatches(rows, phrase, options = {}) {
@@ -143,24 +246,30 @@ export function findPhraseMatches(rows, phrase, options = {}) {
         const preserveHanAdjacency = /\p{Script=Han}$/u.test(text) && /^\p{Script=Han}/u.test(part)
         if (!preserveHanAdjacency) text += ' '
       }
-      starts.push({ offset: text.length, line: row.line })
+      starts.push({ offset: text.length, line: row.line, row })
       text += part
-    }
-
-    if (requireHan && !/\p{Script=Han}/u.test(text)) {
-      block = []
-      return
     }
 
     const folded = text.toLowerCase()
     let offset = folded.indexOf(needle)
     while (offset >= 0) {
-      let line = starts[0]?.line ?? block[0].line
-      for (const start of starts) {
-        if (start.offset > offset) break
-        line = start.line
+      let start = starts[0]
+      for (const candidate of starts) {
+        if (candidate.offset > offset) break
+        start = candidate
       }
-      matches.push(line)
+
+      let accepted = true
+      if (requireHan) {
+        if (start?.row.proseText !== undefined) {
+          const scoped = start.row.proseText
+          accepted = /\p{Script=Han}/u.test(scoped) && scoped.toLowerCase().includes(needle)
+        } else {
+          accepted = /\p{Script=Han}/u.test(text)
+        }
+      }
+
+      if (accepted) matches.push(start?.line ?? block[0].line)
       offset = folded.indexOf(needle, offset + Math.max(1, needle.length))
     }
     block = []
@@ -179,10 +288,11 @@ export function findPhraseMatches(rows, phrase, options = {}) {
 }
 
 export function addedLineNumbers(root, ref, files) {
-  const result = spawnSync('git', ['diff', '--unified=0', `${ref}...HEAD`, '--', ...files], {
-    cwd: root,
-    encoding: 'utf8',
-  })
+  const result = spawnSync(
+    'git',
+    ['-c', 'core.quotePath=false', 'diff', '--unified=0', `${ref}...HEAD`, '--', ...files],
+    { cwd: root, encoding: 'utf8' },
+  )
   if (result.status !== 0) {
     throw new Error(result.stderr || `git diff failed for base ${ref}`)
   }
