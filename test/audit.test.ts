@@ -14,7 +14,6 @@ const auditor = createAuditor({
   log: {
     warn: (...args: unknown[]) => warnings.push(args.map(String).join(' ')),
     error: () => {},
-    info: () => {},
   },
 })
 
@@ -30,8 +29,9 @@ const entry = {
   sandboxMode: 'workspace-write',
   toolCall,
 }
+const request = (callId: string) => ({ toolName: 'bash', callId }) as Parameters<typeof auditor.record>[0]
 
-await auditor.record({ toolName: 'bash', callId: 'audit-1' }, undefined, { id: 'session-1', cwd: '/workspace/project' }, entry)
+await auditor.record(request('audit-1'), undefined, { id: 'session-1', cwd: '/workspace/project' }, entry)
 let rows = readFileSync(file, 'utf8').trim().split(NL).map((line) => JSON.parse(line))
 check(
   'audit defaults to hash-only decision record',
@@ -40,7 +40,7 @@ check(
 )
 
 cfg = Config({ audit: { path: file, includeToolInput: true } })
-await auditor.record({ toolName: 'bash', callId: 'audit-2' }, undefined, { id: 'session-1', cwd: '/workspace/project' }, entry)
+await auditor.record(request('audit-2'), undefined, { id: 'session-1', cwd: '/workspace/project' }, entry)
 rows = readFileSync(file, 'utf8').trim().split(NL).map((line) => JSON.parse(line))
 check('audit raw tool input requires explicit opt-in', rows[1]?.toolInput, toolCall)
 check('audit writes emitted no warning', warnings.length, 0)
